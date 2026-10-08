@@ -1,0 +1,173 @@
+{
+  "profile": {
+    "_id": "1100111551412850741",
+    "name": "Jonthekiller's server",
+    "alert": ["189283824008429568"]
+  },
+  "feeds": [
+    {
+      "title": "Google Workspace",
+      "url": "http://workspaceupdates.googleblog.com/atom.xml",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "text": ":newspaper:  |  **{title}**\n\n{link}",
+      "embeds": []
+    },
+    {
+      "title": "Gitlab",
+      "url": "https://about.gitlab.com/atom.xml",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Prometheus Releases",
+      "url": "https://github.com/prometheus/prometheus/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "text": "📰  |  **{title}**\n\n{link}\n\n{description}",
+      "embeds": []
+    },
+    {
+      "title": "Portainer releases",
+      "url": "https://github.com/portainer/portainer/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "text": ":newspaper:  |  **{title}**\n\n{link}\n\n{description}",
+      "embeds": []
+    },
+    {
+      "title": "HAProxy Technologies",
+      "url": "https://www.haproxy.com/feed",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from PowerToys",
+      "url": "https://github.com/microsoft/PowerToys/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "CERT-FR",
+      "url": "https://cert.ssi.gouv.fr/feed/",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Press Releases RSS feed provided by Dassault Systèmes",
+      "url": "https://www.3ds.com/contents/feed/content/article_press_release",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "News Support RSS feed provided by Dassault Systèmes",
+      "url": "https://www.3ds.com/support/news/news-rss/?type=100",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Home Assistant",
+      "url": "https://www.home-assistant.io/atom.xml",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": [],
+      "checkDates": false
+    },
+    {
+      "title": "Security Advisories RSS feed provided by Dassault Systèmes",
+      "url": "https://www.3ds.com/contents/feed/content/trust-center-security-advisories",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "3DSOutscale Status page Status - Incident History",
+      "url": "https://status.outscale.com/history.rss",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "3DEXPERIENCE platform - Customers Cloud Status (Europe)",
+      "url": "https://3dxcloudhealth-rss.3ds.com/RSS/Customers%20%5BEurope%5D.rss",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from vaultwarden",
+      "url": "https://github.com/dani-garcia/vaultwarden/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Grafana Labs blog on Grafana Labs",
+      "url": "https://grafana.com/blog/news.xml",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from fast-note-sync-service",
+      "url": "https://github.com/haierkeys/fast-note-sync-service/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from hermes-webui",
+      "url": "https://github.com/nesquena/hermes-webui/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": [],
+      "filters": {
+        "title": ["v0."]
+      },
+      "ncomparisons": ["title"]
+    },
+    {
+      "title": "Release notes from mcphub",
+      "url": "https://github.com/samanhappy/mcphub/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from pi-web",
+      "url": "https://github.com/agegr/pi-web/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from mcp-grafana",
+      "url": "https://github.com/grafana/mcp-grafana/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from pi",
+      "url": "https://github.com/earendil-works/pi/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    },
+    {
+      "title": "Release notes from Termix",
+      "url": "https://github.com/Termix-SSH/Termix/releases.atom",
+      "guild": "1100111551412850741",
+      "channel": "1100112370086465660",
+      "embeds": []
+    }
+  ],
+  "filteredFormats": [],
+  "subscribers": []
+}

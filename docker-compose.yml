@@ -1,0 +1,15 @@
+services:
+  rrs-tracker:
+    build: .
+    image: rrs-tracker:latest
+    container_name: rrs-tracker
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
