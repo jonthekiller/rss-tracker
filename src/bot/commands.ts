@@ -27,6 +27,7 @@ import type { Article } from '../feed/types.js'
 import { importMonitoRssBackup } from '../import/monitorss.js'
 import { buildArticlePayload } from '../render/embed.js'
 import { DEFAULT_TEMPLATE } from '../render/template.js'
+import type { DryRunReport } from '../scheduler/scheduler.js'
 import type { BotContext } from './context.js'
 
 // ---------------------------------------------------------------------------
@@ -335,10 +336,19 @@ const feedCommand: CommandHandler = {
     .addSubcommand((sub) =>
       sub
         .setName('test')
-        .setDescription('Preview the latest articles without storing state')
+        .setDescription('Simulate a send with the current template (no state change)')
         .addStringOption((o) => feedIdOption(o))
         .addIntegerOption((o) =>
           o.setName('n').setDescription('Number of articles (1-5)').setMinValue(1).setMaxValue(5),
+        )
+        .addStringOption((o) =>
+          o
+            .setName('mode')
+            .setDescription('preview: ephemeral only; send: real message in this channel')
+            .addChoices(
+              { name: 'preview (ephemeral)', value: 'preview' },
+              { name: 'send to this channel', value: 'send' },
+            ),
         ),
     )
     .addSubcommand((sub) =>
@@ -720,13 +730,16 @@ async function feedTest(
   const feed = await getFeedOrReply(context, interaction)
   if (!feed) return
   const n = interaction.options.getInteger('n') ?? 1
+  const mode = interaction.options.getString('mode') ?? 'preview'
+  // Real sends are capped lower to avoid flooding the channel.
+  const count = mode === 'send' ? Math.min(n, 3) : n
 
   let articles: Article[]
   try {
     const result = await fetchFeed(feed.url)
     if (result.status === 'not_modified') {
       await interaction.editReply(
-        'Feed unchanged since last check (HTTP 304) — nothing to preview.',
+        'Feed unchanged since last check (HTTP 304) — nothing to preview. Use `/debug feed` for diagnostics.',
       )
       return
     }
@@ -738,20 +751,37 @@ async function feedTest(
     return
   }
 
-  const latest = articles.slice(-n).reverse()
+  const latest = articles.slice(-count).reverse()
+  let sent = 0
   for (const article of latest) {
     const payload = buildArticlePayload(feed.templateText, feed.embedJson, {
       article,
       feedName: feed.name,
       timezone: context.config.timezone,
     })
-    const embeds = 'embed' in payload && payload.embeds.length > 0 ? payload.embeds : []
-    await interaction.followUp({
-      content: payload.content,
-      embeds,
-      flags: MessageFlags.Ephemeral,
-    })
+    const embeds = payload.embeds.length > 0 ? payload.embeds : []
+    if (mode === 'send') {
+      const channel = interaction.channel
+      if (!channel?.isSendable()) {
+        await interaction.editReply('Cannot send in this channel.')
+        return
+      }
+      await channel.send({ content: payload.content, embeds })
+      sent += 1
+    } else {
+      await interaction.followUp({
+        content: payload.content,
+        embeds,
+        flags: MessageFlags.Ephemeral,
+      })
+    }
   }
+
+  const summary =
+    mode === 'send'
+      ? `✅ Simulated ${sent} send(s) to this channel with the current template. **State unchanged** (no article marked seen).`
+      : `👀 Preview of ${latest.length} article(s) (ephemeral). Use mode \`send\` to post a real message in this channel.`
+  await interaction.editReply(summary)
 }
 
 async function feedRefresh(
@@ -956,6 +986,122 @@ const settingsCommand: CommandHandler = {
 // /status
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// /debug
+// ---------------------------------------------------------------------------
+
+const debugCommand: CommandHandler = {
+  data: new SlashCommandBuilder()
+    .setName('debug')
+    .setDescription('Diagnostics for troubleshooting')
+    .setDMPermission(false)
+    .addSubcommand((sub) =>
+      sub
+        .setName('feed')
+        .setDescription('Dry-run a feed: fetch now and report what would happen (no state change)')
+        .addStringOption((o) => feedIdOption(o)),
+    )
+    .addSubcommand((sub) =>
+      sub.setName('system').setDescription('System diagnostics (memory, queues, scheduler)'),
+    ) as SlashCommandBuilder,
+
+  async handle(context, interaction) {
+    const sub = interaction.options.getSubcommand(true)
+    if (sub === 'feed') {
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral })
+      const feed = await getFeedOrReply(context, interaction)
+      if (!feed) return
+
+      let report: DryRunReport
+      try {
+        report = await context.pipeline.dryRun(feed.id)
+      } catch (error) {
+        await interaction.editReply(`❌ ${error instanceof Error ? error.message : String(error)}`)
+        return
+      }
+
+      const lines: string[] = [
+        `🔧 **Dry-run — ${report.feed.name}** (\`${report.feed.id.slice(0, 8)}\`)`,
+      ]
+      lines.push(`URL: <${report.feed.url}> → <#${report.feed.channelId}>`)
+      lines.push(
+        `Enabled: ${report.feed.enabled}${report.feed.pauseReason ? ` (${report.feed.pauseReason})` : ''} · interval ${report.feed.intervalMinutes} min · batch \`${report.feed.batchMode}\` (≥ ${report.feed.batchThreshold})`,
+      )
+      lines.push(
+        `State: ${report.state.seenCount} seen · failures ×${report.state.consecutiveFailures}${report.state.lastError ? ` — last: ${report.state.lastError}` : ''} · queue: ${report.state.queueDepth}`,
+      )
+
+      const fetchInfo = report.fetch
+      if (!fetchInfo) {
+        lines.push('Fetch: (no result)')
+      } else if (fetchInfo.status === 'error') {
+        lines.push(`Fetch: ❌ ${fetchInfo.error}`)
+        lines.push('→ Check the URL, the container logs and your network from the host.')
+      } else if (fetchInfo.status === 'not_modified') {
+        lines.push(`Fetch: ✅ ${fetchInfo.detail}`)
+      } else {
+        lines.push(
+          `Fetch: ✅ ${fetchInfo.articleCount} article(s) parsed${fetchInfo.feedTitle ? ` (feed title: "${fetchInfo.feedTitle}")` : ''}`,
+        )
+      }
+
+      if (report.detection) {
+        const d = report.detection
+        lines.push(
+          `Detection: ${d.fresh} new · ${d.blocked} blocked by filters · ${d.tooOld} too old`,
+        )
+        if (d.freshTitles.length > 0) {
+          lines.push('New (would be sent):')
+          for (const title of d.freshTitles) lines.push(`  - ${title}`)
+        }
+        if (d.blockedTitles.length > 0) {
+          lines.push('Blocked:')
+          for (const title of d.blockedTitles) lines.push(`  - ${title}`)
+        }
+      }
+      if (report.delivery) {
+        lines.push(
+          `Delivery: \`${report.delivery.mode}\` → ${report.delivery.messages} message(s)${report.delivery.wouldSendNow ? '' : ' — **nothing would be sent right now** (paused, nothing new, or first check not yet done)'}`,
+        )
+      }
+      if (report.render) {
+        lines.push(
+          `Render preview (latest article "${report.render.articleTitle}", ${report.render.embedCount} embed):`,
+        )
+        lines.push('```')
+        lines.push(report.render.content.slice(0, 500) || '(empty content)')
+        lines.push('```')
+      }
+      lines.push('*No state was modified by this dry-run.*')
+
+      const chunks = chunkLines(lines)
+      await interaction.editReply(chunks[0] ?? 'No data.')
+      for (const chunk of chunks.slice(1, 5)) {
+        await interaction.followUp({ content: chunk, flags: MessageFlags.Ephemeral })
+      }
+      return
+    }
+
+    // /debug system
+    const memory = process.memoryUsage()
+    const uptimeS = Math.floor(process.uptime())
+    const feeds = context.store.getAllFeeds()
+    const lines = [
+      '🔧 **System diagnostics**',
+      `Version: ${context.version} · Node ${process.version}`,
+      `Uptime: ${Math.floor(uptimeS / 3600)}h ${Math.floor((uptimeS % 3600) / 60)}m`,
+      `Memory: RSS ${(memory.rss / 1024 / 1024).toFixed(0)} MB · heap ${(memory.heapUsed / 1024 / 1024).toFixed(0)}/${(memory.heapTotal / 1024 / 1024).toFixed(0)} MB`,
+      `Feeds: ${feeds.filter((f) => f.enabled).length}/${feeds.length} enabled`,
+      `Send queue: ${context.sender.totalDepth()} message(s) pending`,
+      `Scheduler: ${context.scheduler.isSuspended() ? 'suspended (import/restore)' : 'running'}`,
+      `Bot user: ${context.client.user?.tag ?? 'not ready'}`,
+      '',
+      '💡 Container logs: `docker logs -f rrs-tracker` (or the add-on log page).',
+    ]
+    await reply(interaction, chunkLines(lines)[0] ?? 'No data.')
+  },
+}
+
 const statusCommand: CommandHandler = {
   data: new SlashCommandBuilder()
     .setName('status')
@@ -1048,4 +1194,5 @@ export const commands: CommandHandler[] = [
   backupCommand,
   settingsCommand,
   statusCommand,
+  debugCommand,
 ]

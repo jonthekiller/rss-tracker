@@ -6,6 +6,7 @@ import { buildDigestMessages } from '../render/digest.js'
 import { buildArticlePayload } from '../render/embed.js'
 import type { TemplateContext } from '../render/template.js'
 import type { SenderQueue } from '../sender/queue.js'
+import { createLogger } from '../util/logger.js'
 
 export interface PipelineOptions {
   store: FeedStore
@@ -28,6 +29,57 @@ export interface PipelineOptions {
 
 export const FAILURE_ALERT_THRESHOLD = 3
 const MAX_BACKOFF_MS = 6 * 3600 * 1000
+
+const log = createLogger('scheduler')
+
+export interface DryRunReport {
+  feed: {
+    id: string
+    name: string
+    url: string
+    channelId: string
+    enabled: boolean
+    pauseReason: string | null
+    intervalMinutes: number
+    batchMode: string
+    batchThreshold: number
+    templateText: string
+    embedJson: string | null
+  }
+  state: {
+    seenCount: number
+    nextCheckAt: number
+    consecutiveFailures: number
+    lastError: string | null
+    queueDepth: number
+  }
+  fetch?: {
+    status: 'not_modified' | 'ok' | 'error'
+    articleCount?: number
+    feedTitle?: string | null
+    etagReceived?: string | null
+    lastModifiedReceived?: string | null
+    detail?: string
+    error?: string
+  }
+  detection?: {
+    fresh: number
+    blocked: number
+    tooOld: number
+    freshTitles: string[]
+    blockedTitles: string[]
+  }
+  delivery?: {
+    mode: string
+    messages: number
+    wouldSendNow: boolean
+  }
+  render?: {
+    articleTitle: string
+    content: string
+    embedCount: number
+  }
+}
 
 export interface CheckOutcome {
   feedId: string
@@ -70,6 +122,7 @@ export class Pipeline {
       })
 
       if (result.status === 'not_modified') {
+        log.debug({ feed: feed.name }, 'Not modified (304)')
         store.markChecked(feed.id, now, null, null)
         store.setNextCheck(feed.id, now + this.intervalMs(feed))
         if (wasFailing) this.options.onFeedRecovered?.(feed)
@@ -101,6 +154,17 @@ export class Pipeline {
       if (wasFailing) this.options.onFeedRecovered?.(feed)
 
       store.setNextCheck(feed.id, now + this.intervalMs(feed))
+      if (detection.fresh.length > 0) {
+        log.info(
+          {
+            feed: feed.name,
+            fresh: detection.fresh.length,
+            blocked: detection.blocked.length,
+            skipped: detection.tooOld.length,
+          },
+          'Feed checked with new articles',
+        )
+      }
       return {
         feedId,
         status: detection.fresh.length > 0 ? 'delivered' : 'empty',
@@ -108,6 +172,7 @@ export class Pipeline {
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
+      log.warn({ feed: feed.name, url: feed.url, error: message }, 'Feed check failed')
       store.markFailure(feed.id, now, message)
       const updated = store.getFeed(feed.id)
       const failures = updated?.consecutiveFailures ?? 1
@@ -128,6 +193,112 @@ export class Pipeline {
         })
       }
       return { feedId, status: 'error', error: message }
+    }
+  }
+
+  /**
+   * Fetch and analyse a feed WITHOUT changing any state (no baseline,
+   * no next_check, no failure counters). Used by /debug feed.
+   */
+  async dryRun(
+    feedId: string,
+    now: number = this.options.now?.() ?? Date.now(),
+  ): Promise<DryRunReport> {
+    const store = this.options.store
+    const feed = store.getFeed(feedId)
+    if (!feed) throw new Error(`Feed ${feedId} not found`)
+
+    const seenCount = store.countSeen(feed.id)
+    const report: DryRunReport = {
+      feed: {
+        id: feed.id,
+        name: feed.name,
+        url: feed.url,
+        channelId: feed.channelId,
+        enabled: feed.enabled,
+        pauseReason: feed.pauseReason,
+        intervalMinutes: feed.intervalMinutes,
+        batchMode: feed.batchMode,
+        batchThreshold: feed.batchThreshold,
+        templateText: feed.templateText,
+        embedJson: feed.embedJson,
+      },
+      state: {
+        seenCount,
+        nextCheckAt: feed.nextCheckAt,
+        consecutiveFailures: feed.consecutiveFailures,
+        lastError: feed.lastError,
+        queueDepth: this.options.sender.depth(feed.channelId),
+      },
+    }
+
+    try {
+      const result = await fetchFeed(feed.url, {
+        etag: feed.etag,
+        lastModified: feed.lastModified,
+        fetchImpl: this.options.fetchImpl,
+      })
+
+      if (result.status === 'not_modified') {
+        report.fetch = {
+          status: 'not_modified',
+          detail: 'HTTP 304 — the feed has not changed since the last check',
+        }
+        return report
+      }
+
+      const detection = detectNewArticles({
+        articles: result.articles,
+        knownKeys: store.getSeenKeys(feed.id),
+        maxAgeDays: feed.maxAgeDays,
+        now,
+        filters: store.getFilters(feed.id),
+      })
+      const willDigest =
+        feed.batchMode === 'digest' ||
+        (feed.batchMode === 'auto' && detection.fresh.length >= feed.batchThreshold)
+
+      report.fetch = {
+        status: 'ok',
+        articleCount: result.articles.length,
+        feedTitle: result.meta.title,
+        etagReceived: result.etag,
+        lastModifiedReceived: result.lastModified,
+      }
+      report.detection = {
+        fresh: detection.fresh.length,
+        blocked: detection.blocked.length,
+        tooOld: detection.tooOld.length,
+        freshTitles: detection.fresh.slice(-5).map((a) => a.title),
+        blockedTitles: detection.blocked.slice(0, 5).map((a) => a.title),
+      }
+      report.delivery = {
+        mode: willDigest ? 'digest' : 'individual',
+        messages: willDigest ? 1 : detection.fresh.length,
+        wouldSendNow: feed.enabled && detection.fresh.length > 0 && seenCount > 0,
+      }
+
+      // Render preview of the latest fresh article (or the latest article).
+      const previewArticle = detection.fresh.at(-1) ?? result.articles.at(-1)
+      if (previewArticle) {
+        const payload = buildArticlePayload(feed.templateText, feed.embedJson, {
+          article: previewArticle,
+          feedName: feed.name,
+          timezone: this.options.timezone,
+        })
+        report.render = {
+          articleTitle: previewArticle.title,
+          content: payload.content,
+          embedCount: payload.embeds.length,
+        }
+      }
+      return report
+    } catch (error) {
+      report.fetch = {
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+      }
+      return report
     }
   }
 
@@ -168,6 +339,15 @@ export class Pipeline {
       for (const message of messages) {
         this.options.sender.send(feed.channelId, message)
       }
+      log.info(
+        {
+          feed: feed.name,
+          channel: feed.channelId,
+          fresh: fresh.length,
+          messages: messages.length,
+        },
+        'Digest enqueued for burst',
+      )
       return
     }
 
@@ -175,6 +355,10 @@ export class Pipeline {
       const payload = buildArticlePayload(feed.templateText, feed.embedJson, context(article))
       this.options.sender.send(feed.channelId, payload)
     }
+    log.info(
+      { feed: feed.name, channel: feed.channelId, fresh: fresh.length },
+      'Individual articles enqueued',
+    )
   }
 }
 

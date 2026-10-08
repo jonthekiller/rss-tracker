@@ -1,6 +1,6 @@
 {
   "name": "rrs-tracker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lightweight self-hosted Discord RSS bot (MonitoRSS alternative)",
   "type": "module",
   "engines": {
@@ -22,7 +22,8 @@
     "better-sqlite3": "^12.11.1",
     "discord.js": "^14.27.0",
     "feedsmith": "^3.0.1",
-    "pino": "^10.4.0"
+    "pino": "^10.4.0",
+    "pino-pretty": "^13.2.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

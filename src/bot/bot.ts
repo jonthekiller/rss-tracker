@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module'
 import path from 'node:path'
 import {
   Client,
@@ -20,6 +21,9 @@ import { type BotContext, startBotContext } from './context.js'
 
 const log = createLogger('bot')
 
+const require = createRequire(import.meta.url)
+const { version } = require('../../package.json') as { version: string }
+
 export async function startBot(): Promise<void> {
   const config = getConfig()
   const db = openDatabase({ dbPath: resolveDbPath(config.dbPath) })
@@ -40,7 +44,7 @@ export async function startBot(): Promise<void> {
     },
     onSendError: (channelId, _message, error) => {
       const code = (error as { code?: number }).code
-      log.warn({ channelId, code, err: error }, 'Failed to send message')
+      log.warn({ channelId, code, err: error }, 'Failed to send message to channel')
       if (code === 10003 || code === 50001 || code === 50013) {
         // Unknown channel / missing access: pause every feed targeting it.
         const feeds = store.getFeedsForChannel(channelId)
@@ -68,6 +72,7 @@ export async function startBot(): Promise<void> {
 
   const context: BotContext = {
     config,
+    version,
     db,
     store,
     sender,

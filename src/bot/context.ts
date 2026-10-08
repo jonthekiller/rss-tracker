@@ -11,6 +11,8 @@ import type { SenderQueue } from '../sender/queue.js'
  */
 export interface BotContext {
   config: Config
+  /** App version from package.json, shown in /debug system. */
+  version: string
   db: Database
   store: FeedStore
   sender: SenderQueue

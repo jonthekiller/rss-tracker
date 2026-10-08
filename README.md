@@ -48,8 +48,10 @@ Toutes les commandes nécessitent la permission **Manage Server**.
 | `/feed batch id mode [threshold] [max_items]` | Mode de rafale : `auto` / `digest` / `individual` |
 | `/feed filter add id kind field text [regex]` | Ajouter un filtre |
 | `/feed filter remove id filter_id` | Retirer un filtre |
-| `/feed test id [n]` | Prévisualiser les n derniers articles (éphémère) |
+| `/feed test id [n] [mode]` | **Simuler un envoi** : `preview` (éphémère, défaut) ou `send` (vrai message dans le channel courant, état inchangé) |
 | `/feed refresh id` | Vérifier immédiatement |
+| `/debug feed id` | **Dry-run** : fetch + rapport détaillé (articles vus/nouvelles/bloqués, rendu du template, erreurs) sans rien modifier |
+| `/debug system` | Diagnostics : mémoire, files d'envoi, scheduler, version |
 | `/import monitorss file [channel]` | Importer un backup MonitoRSS (pièce jointe `.json`) |
 | `/backup export` | Exporter toute la configuration (JSON en pièce jointe) |
 | `/backup restore file` | Restaurer un backup (pièce jointe `.json`) |
@@ -119,6 +121,15 @@ Quand N nouveaux articles arrivent dans le même cycle de vérification :
 | `LOG_LEVEL` | `info` | trace/debug/info/warn/error |
 | `BACKUP_HOUR` | `3` | Heure de l'auto-backup (vide = désactivé) |
 | `TIMEZONE` | `UTC` | Fuseau pour `{date}` |
+
+## Déboguer
+
+- **Depuis Discord** : `/feed test id mode:send` poste le dernier article avec le template courant (sans marquer vu) ; `/debug feed id` fait un dry-run complet (fetch HTTP, articles détectés, filtres, rendu, état du feed, file d'envoi) ; `/status` et `/debug system` pour la santé globale.
+- **Depuis le conteneur** : les logs sont lisibles directement (`docker logs -f rrs-tracker`). Chaque échec de feed est loggé avec son nom/URL/erreur, chaque livraison avec le nombre d'articles. Passer `LOG_LEVEL=debug` pour le détail des cycles.
+
+## Add-on Home Assistant
+
+Voir [addon/README.md](addon/README.md) : le projet peut tourner comme add-on Home Assistant (données persistées dans `/data`, configuration via l'UI des add-ons). Préparer avec `./scripts/prepare-addon.sh` puis copier `addon/` dans les add-ons locaux.
 
 ## Développement
 
