@@ -321,4 +321,44 @@ export class FeedStore {
     }[]
     return Object.fromEntries(rows.map((r) => [r.key, r.value]))
   }
+
+  // ---- per-channel settings (v2 model) ----
+
+  getChannelSetting(channelId: string, key: string): string | null {
+    const row = this.db
+      .prepare('SELECT value FROM channel_settings WHERE channel_id = ? AND key = ?')
+      .get(channelId, key) as { value: string | null } | undefined
+    return row?.value ?? null
+  }
+
+  setChannelSetting(channelId: string, key: string, value: string | null): void {
+    if (value === null) {
+      this.db
+        .prepare('DELETE FROM channel_settings WHERE channel_id = ? AND key = ?')
+        .run(channelId, key)
+      return
+    }
+    this.db
+      .prepare(
+        'INSERT INTO channel_settings (channel_id, key, value) VALUES (?, ?, ?) ON CONFLICT (channel_id, key) DO UPDATE SET value = excluded.value',
+      )
+      .run(channelId, key, value)
+  }
+
+  getAllChannelSettings(channelId: string): Record<string, string | null> {
+    const rows = this.db
+      .prepare('SELECT key, value FROM channel_settings WHERE channel_id = ?')
+      .all(channelId) as { key: string; value: string | null }[]
+    return Object.fromEntries(rows.map((r) => [r.key, r.value]))
+  }
+
+  /** All channel ids that have feeds or settings (for server-wide export). */
+  getAllChannelIds(): string[] {
+    const rows = this.db
+      .prepare(
+        'SELECT DISTINCT channel_id FROM feeds UNION SELECT DISTINCT channel_id FROM channel_settings',
+      )
+      .all() as { channel_id: string }[]
+    return rows.map((r) => r.channel_id)
+  }
 }

@@ -41,7 +41,7 @@ async function reply(interaction: ChatInputCommandInteraction, content: string, 
   return interaction.reply({ content, flags: ephemeral ? MessageFlags.Ephemeral : undefined })
 }
 
-function requireManageGuild(interaction: ChatInputCommandInteraction): boolean {
+function _requireManageGuild(interaction: ChatInputCommandInteraction): boolean {
   return (
     interaction.inGuild() &&
     (interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false)
@@ -186,18 +186,9 @@ export async function handleInteraction(
     await interaction.reply({ content: 'Unknown command.', flags: MessageFlags.Ephemeral })
     return
   }
-  // Server-wide commands (import, backup, settings) require Manage Server.
-  // Feed commands enforce channel-scoped permissions inside their handlers:
-  // you can configure the feeds of a channel you can write in.
-  const SERVER_WIDE_COMMANDS = new Set(['import', 'backup', 'settings'])
-  if (SERVER_WIDE_COMMANDS.has(interaction.commandName) && !requireManageGuild(interaction)) {
-    await interaction.reply({
-      content: 'You need the **Manage Server** permission to use this command.',
-      flags: MessageFlags.Ephemeral,
-    })
-    return
-  }
-
+  // Every command enforces its own scope: feed commands require write access
+  // to the channel they touch, settings/import/backup operate on the current
+  // channel, and server-wide options (backup all_channels) check Manage Server.
   await command.handle(context, interaction)
 }
 
@@ -919,6 +910,15 @@ const importCommand: CommandHandler = {
     const guildId = interaction.guildId ?? ''
     const fallbackChannelId = interaction.options.getChannel('channel')?.id ?? interaction.channelId
 
+    // Import is channel-scoped: the importer must be able to write in the
+    // destination channel (explicit option or the current channel).
+    if (!(await canManageChannel(interaction, fallbackChannelId))) {
+      await interaction.editReply(
+        `🔒 You need the **Send Messages** permission in <#${fallbackChannelId}> to import feeds there.`,
+      )
+      return
+    }
+
     let data: unknown
     try {
       data = await getAttachmentJson(interaction, 'file')
@@ -933,6 +933,7 @@ const importCommand: CommandHandler = {
         guildId,
         fallbackChannelId,
         channelExists: (g, c) => channelExists(context, g, c),
+        actorCanManageChannel: (c) => canManageChannel(interaction, c),
         defaultTemplate: DEFAULT_TEMPLATE,
       })
       await interaction.editReply(
@@ -954,7 +955,15 @@ const backupCommand: CommandHandler = {
     .setDescription('Backup and restore configuration')
     .setDMPermission(false)
     .addSubcommand((sub) =>
-      sub.setName('export').setDescription('Export the full configuration as JSON'),
+      sub
+        .setName('export')
+        .setDescription('Export configuration as JSON (this channel by default)')
+        .addChannelOption((o) =>
+          o.setName('channel').setDescription('Export this channel only (default: current)'),
+        )
+        .addBooleanOption((o) =>
+          o.setName('all_channels').setDescription('Export every channel (requires Manage Server)'),
+        ),
     )
     .addSubcommand((sub) =>
       sub
@@ -968,13 +977,33 @@ const backupCommand: CommandHandler = {
   async handle(context, interaction) {
     const sub = interaction.options.getSubcommand(true)
     if (sub === 'export') {
-      const backup = exportBackup(context.store)
+      const all = interaction.options.getBoolean('all_channels') ?? false
+      if (all && !isAdmin(interaction)) {
+        await reply(
+          interaction,
+          'Exporting **all channels** requires the **Manage Server** permission. Export a single channel with `/backup export channel:<channel>`.',
+        )
+        return
+      }
+      let channelIds: string[] | undefined
+      let scopeLabel = 'all channels'
+      if (!all) {
+        const channelId = interaction.options.getChannel('channel')?.id ?? interaction.channelId
+        if (!(await canManageChannel(interaction, channelId))) {
+          await denyChannelAccess(interaction, channelId)
+          return
+        }
+        channelIds = [channelId]
+        scopeLabel = `<#${channelId}>`
+      }
+      const backup = exportBackup(context.store, channelIds)
+      const feedCount = backup.channels.reduce((sum, c) => sum + c.feeds.length, 0)
       const buffer = Buffer.from(JSON.stringify(backup, null, 2), 'utf-8')
       const file = new AttachmentBuilder(buffer, {
         name: `rrs-backup-${new Date().toISOString().slice(0, 10)}.json`,
       })
       await interaction.reply({
-        content: `💾 Backup: ${backup.feeds.length} feed(s), exported ${backup.exportedAt}`,
+        content: `💾 Backup (${scopeLabel}): ${feedCount} feed(s) in ${backup.channels.length} channel(s), exported ${backup.exportedAt}`,
         files: [file],
         flags: MessageFlags.Ephemeral,
       })
@@ -996,6 +1025,7 @@ const backupCommand: CommandHandler = {
       const results = await restoreBackup(context.store, data, {
         guildId,
         channelExists: (g, c) => channelExists(context, g, c),
+        actorCanManageChannel: (c) => canManageChannel(interaction, c),
         baseline: async (feedId, url) => {
           try {
             const result = await fetchFeed(url)
@@ -1030,7 +1060,9 @@ const settingsCommand: CommandHandler = {
     .addSubcommand((sub) =>
       sub
         .setName('alert')
-        .setDescription('Where to notify when a feed fails')
+        .setDescription(
+          'Where to notify when a feed of THIS channel fails (run the command in that channel)',
+        )
         .addUserOption((o) =>
           o.setName('user').setDescription('User to DM on failures (empty to clear)'),
         )
@@ -1044,27 +1076,42 @@ const settingsCommand: CommandHandler = {
       await reply(interaction, 'Unknown subcommand.')
       return
     }
+    // Settings are PER CHANNEL: run the command in the channel to configure.
+    const channelId = interaction.channelId
+    if (!interaction.inCachedGuild() || !(await canManageChannel(interaction, channelId))) {
+      await reply(
+        interaction,
+        '🔒 You need the **Send Messages** permission in this channel to configure its alerts.',
+      )
+      return
+    }
+    const alertChannelOption = interaction.options.getChannel('channel')
+    if (alertChannelOption && !(await canManageChannel(interaction, alertChannelOption.id))) {
+      await denyChannelAccess(interaction, alertChannelOption.id)
+      return
+    }
+
     const user = interaction.options.getUser('user')
     const channel = interaction.options.getChannel('channel')
     if (user === null) {
-      context.store.setSetting('alert_user_id', null)
+      context.store.setChannelSetting(channelId, 'alert_user_id', null)
     } else if (user) {
-      context.store.setSetting('alert_user_id', user.id)
+      context.store.setChannelSetting(channelId, 'alert_user_id', user.id)
     }
     if (channel === null) {
-      context.store.setSetting('alert_channel_id', null)
+      context.store.setChannelSetting(channelId, 'alert_channel_id', null)
     } else if (channel) {
-      context.store.setSetting('alert_channel_id', channel.id)
+      context.store.setChannelSetting(channelId, 'alert_channel_id', channel.id)
     }
 
     const current: string[] = []
-    const alertUser = context.store.getSetting('alert_user_id')
-    const alertChannel = context.store.getSetting('alert_channel_id')
+    const alertUser = context.store.getChannelSetting(channelId, 'alert_user_id')
+    const alertChannel = context.store.getChannelSetting(channelId, 'alert_channel_id')
     if (alertUser) current.push(`User: <@${alertUser}>`)
     if (alertChannel) current.push(`Channel: <#${alertChannel}>`)
     await reply(
       interaction,
-      `⚙️ Failure alerts: ${current.length > 0 ? current.join(' · ') : 'disabled'}`,
+      `⚙️ Failure alerts for <#${channelId}>: ${current.length > 0 ? current.join(' · ') : 'disabled'}`,
     )
   },
 }

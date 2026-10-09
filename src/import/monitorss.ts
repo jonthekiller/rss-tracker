@@ -42,6 +42,8 @@ export interface ImportMonitorssOptions {
   channelExists: (guildId: string, channelId: string) => Promise<boolean>
   /** Default template when the feed has none (MonitoRSS uses its own default). */
   defaultTemplate: string
+  /** Whether the person running the import may manage (write in) a channel. */
+  actorCanManageChannel: (channelId: string) => Promise<boolean>
   /** Injectable fetch for tests. */
   fetchImpl?: typeof fetch | undefined
   now?: () => number
@@ -71,6 +73,12 @@ export async function importMonitoRssBackup(
   const results: ImportEntryResult[] = []
   const feeds = backup.feeds ?? []
 
+  // profile.alert becomes the target channel's failure-alert setting.
+  const profileAlert = backup.profile?.alert?.[0]
+  if (profileAlert && !store.getChannelSetting(options.fallbackChannelId, 'alert_user_id')) {
+    store.setChannelSetting(options.fallbackChannelId, 'alert_user_id', profileAlert)
+  }
+
   for (const rawFeed of feeds) {
     const name = rawFeed.title?.trim() || 'Unknown'
     const url = rawFeed.url?.trim()
@@ -92,8 +100,8 @@ export async function importMonitoRssBackup(
     }
 
     try {
-      const channelId = await resolveChannel(options, rawFeed)
-      if (!channelId) {
+      const resolved = await resolveChannel(options, rawFeed)
+      if (!resolved) {
         results.push({
           name,
           url,
@@ -102,6 +110,16 @@ export async function importMonitoRssBackup(
         })
         continue
       }
+      if (!(await options.actorCanManageChannel(resolved.channelId))) {
+        results.push({
+          name,
+          url,
+          status: 'skipped',
+          detail: `You need the Send Messages permission in <#${resolved.channelId}> to import feeds there`,
+        })
+        continue
+      }
+      const channelId = resolved.channelId
 
       const templateText = rawFeed.text?.trim() ? rawFeed.text : options.defaultTemplate
       const feed = store.addFeed({
@@ -174,13 +192,14 @@ export async function importMonitoRssBackup(
 async function resolveChannel(
   options: ImportMonitorssOptions,
   feed: MonitoRssFeed,
-): Promise<string | null> {
+): Promise<{ channelId: string } | null> {
   const mapped = options.mapOldChannels?.[feed.channel ?? '']
-  if (mapped) return mapped
+  if (mapped) return { channelId: mapped }
   if (feed.channel && (await options.channelExists(options.guildId, feed.channel))) {
-    return feed.channel
+    return { channelId: feed.channel }
   }
-  return options.fallbackChannelId
+  if (options.fallbackChannelId) return { channelId: options.fallbackChannelId }
+  return null
 }
 
 function toField(field: string): 'title' | 'description' | 'any' {

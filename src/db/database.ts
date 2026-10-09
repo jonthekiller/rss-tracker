@@ -71,6 +71,18 @@ const MIGRATIONS: Migration[] = [
       );
     `,
   },
+  {
+    version: 2,
+    name: 'per-channel-settings',
+    up: `
+      CREATE TABLE channel_settings (
+        channel_id TEXT NOT NULL,
+        key TEXT NOT NULL,
+        value TEXT,
+        PRIMARY KEY (channel_id, key)
+      );
+    `,
+  },
 ]
 
 export interface OpenDatabaseOptions {

@@ -126,18 +126,19 @@ export async function startBot(): Promise<void> {
 async function sendFailureAlert(
   client: Client,
   store: FeedStore,
-  feed: { id: string; name: string; url: string; lastError: string | null },
+  feed: { id: string; name: string; url: string; channelId: string; lastError: string | null },
 ): Promise<void> {
   const message = `⚠️ **Feed failed** — ${feed.name} (<${feed.url}>)\n\`\`\`\n${feed.lastError ?? 'unknown error'}\n\`\`\``
   try {
-    const userId = store.getSetting('alert_user_id')
+    // Alert targets are configured per channel (/settings alert in that channel).
+    const userId = store.getChannelSetting(feed.channelId, 'alert_user_id')
     if (userId) {
       const user = await client.users.fetch(userId)
       await user.send(message)
       store.updateFeed(feed.id, { failedNotified: true })
       return
     }
-    const channelId = store.getSetting('alert_channel_id')
+    const channelId = store.getChannelSetting(feed.channelId, 'alert_channel_id')
     if (channelId) {
       const channel = await client.channels.fetch(channelId)
       if (channel?.isSendable()) {

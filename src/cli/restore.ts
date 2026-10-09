@@ -42,6 +42,7 @@ const results = await restoreBackup(store, data, {
   guildId,
   mapChannels,
   channelExists: () => Promise.resolve(false), // CLI cannot verify; remap explicitly
+  actorCanManageChannel: () => Promise.resolve(true), // CLI has no Discord actor
   baseline: async (feedId, url) => {
     try {
       const result = await fetchFeed(url)

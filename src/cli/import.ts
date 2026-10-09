@@ -42,6 +42,7 @@ const results = await importMonitoRssBackup(store, data, {
   fallbackChannelId,
   mapOldChannels,
   channelExists: () => Promise.resolve(false), // CLI cannot verify; map explicitly
+  actorCanManageChannel: () => Promise.resolve(true), // CLI has no Discord actor
   defaultTemplate: DEFAULT_TEMPLATE,
 })
 

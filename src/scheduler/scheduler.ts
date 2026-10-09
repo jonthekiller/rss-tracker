@@ -20,7 +20,13 @@ export interface PipelineOptions {
   fetchImpl?: typeof fetch
   now?: () => number
   /** Called when a feed crosses the failure alert threshold. */
-  onFeedFailed?: (feed: { id: string; name: string; url: string; lastError: string | null }) => void
+  onFeedFailed?: (feed: {
+    id: string
+    name: string
+    url: string
+    channelId: string
+    lastError: string | null
+  }) => void
   /** Called when a previously failing feed succeeds again. */
   onFeedRecovered?: (feed: { id: string; name: string; url: string }) => void
   /** Consecutive failures before alerting. */
@@ -189,6 +195,7 @@ export class Pipeline {
           id: feed.id,
           name: feed.name,
           url: feed.url,
+          channelId: feed.channelId,
           lastError: updated?.lastError ?? message,
         })
       }

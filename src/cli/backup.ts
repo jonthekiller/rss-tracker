@@ -14,4 +14,7 @@ const backup = exportBackup(new FeedStore(db))
 fs.mkdirSync(output.substring(0, output.lastIndexOf('/')) || '.', { recursive: true })
 fs.writeFileSync(output, JSON.stringify(backup, null, 2))
 db.close()
-console.log(`Backup written to ${output} (${backup.feeds.length} feeds)`)
+const feedCount = backup.channels.reduce((sum, c) => sum + c.feeds.length, 0)
+console.log(
+  `Backup written to ${output} (${feedCount} feeds in ${backup.channels.length} channels)`,
+)

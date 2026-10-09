@@ -33,7 +33,9 @@ async function baselineOk(
   return { ok: true }
 }
 
-describe('backup / restore round-trip', () => {
+const allowAll = () => Promise.resolve(true)
+
+describe('backup / restore round-trip (v2, per channel)', () => {
   let store: FeedStore
 
   beforeEach(() => {
@@ -54,20 +56,23 @@ describe('backup / restore round-trip', () => {
     })
     store.addFilter('11111111-1111-1111-1111-111111111111', 'include', 'title', 'v0.', false)
     store.markSeen('11111111-1111-1111-1111-111111111111', ['k1', 'k2'], [NOW, NOW])
-    store.setSetting('alert_user_id', '999')
+    store.setChannelSetting('c1', 'alert_user_id', '999')
 
     const backup = exportBackup(store)
-    expect(backup.version).toBe(1)
-    expect(backup.feeds).toHaveLength(1)
-    expect(backup.feeds[0].seenKeys).toEqual(['k1', 'k2'])
-    expect(backup.feeds[0].filters).toHaveLength(1)
-    expect(backup.settings.alert_user_id).toBe('999')
+    expect(backup.version).toBe(2)
+    expect(backup.channels).toHaveLength(1)
+    expect(backup.channels[0].channelId).toBe('c1')
+    expect(backup.channels[0].feeds).toHaveLength(1)
+    expect(backup.channels[0].feeds[0].seenKeys).toEqual(['k1', 'k2'])
+    expect(backup.channels[0].feeds[0].filters).toHaveLength(1)
+    expect(backup.channels[0].settings.alert_user_id).toBe('999')
 
     // Fresh database (wipe): restore from the backup.
     const store2 = new FeedStore(openDatabase({ dbPath: ':memory:', ensureDir: false }))
     const results = await restoreBackup(store2, backup, {
       guildId: 'g1',
       channelExists: () => Promise.resolve(true),
+      actorCanManageChannel: allowAll,
       baseline: baselineOk,
     })
     expect(results.every((r) => r.status === 'restored')).toBe(true)
@@ -80,8 +85,17 @@ describe('backup / restore round-trip', () => {
     expect(store2.getSeenKeys('11111111-1111-1111-1111-111111111111')).toEqual(
       new Set(['k1', 'k2']),
     )
-    expect(store2.getSetting('alert_user_id')).toBe('999')
+    expect(store2.getChannelSetting('c1', 'alert_user_id')).toBe('999')
     expect(store2.getFilters('11111111-1111-1111-1111-111111111111')[0].pattern).toBe('v0.')
+  })
+
+  it('exports a single channel when a scope is given', async () => {
+    store.addFeed({ id: 'feed-a', name: 'A', url: 'https://a', guildId: 'g1', channelId: 'c1' })
+    store.addFeed({ id: 'feed-b', name: 'B', url: 'https://b', guildId: 'g1', channelId: 'c2' })
+    const backup = exportBackup(store, ['c1'])
+    expect(backup.channels).toHaveLength(1)
+    expect(backup.channels[0].channelId).toBe('c1')
+    expect(backup.channels[0].feeds).toHaveLength(1)
   })
 
   it('puts feeds with unknown channels on pause', async () => {
@@ -97,9 +111,24 @@ describe('backup / restore round-trip', () => {
     const results = await restoreBackup(store2, backup, {
       guildId: 'g1',
       channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: allowAll,
       baseline: baselineOk,
     })
     expect(results[0].status).toBe('channel_missing')
+  })
+
+  it('skips channel groups the actor cannot manage', async () => {
+    store.addFeed({ id: 'feed-a', name: 'A', url: 'https://a', guildId: 'g1', channelId: 'c1' })
+    const backup = exportBackup(store)
+    const store2 = new FeedStore(openDatabase({ dbPath: ':memory:', ensureDir: false }))
+    const results = await restoreBackup(store2, backup, {
+      guildId: 'g1',
+      channelExists: () => Promise.resolve(true),
+      actorCanManageChannel: () => Promise.resolve(false),
+      baseline: baselineOk,
+    })
+    expect(results[0].status).toBe('forbidden')
+    expect(store2.getFeed('feed-a')).toBeNull()
   })
 
   it('remaps channels on restore', async () => {
@@ -110,6 +139,7 @@ describe('backup / restore round-trip', () => {
       guildId: 'g1',
       mapChannels: { old: 'new' },
       channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: allowAll,
       baseline: baselineOk,
     })
     expect(store2.getFeed('feed-a')?.channelId).toBe('new')
@@ -124,14 +154,54 @@ describe('backup / restore round-trip', () => {
         {
           guildId: 'g1',
           channelExists: () => Promise.resolve(true),
+          actorCanManageChannel: allowAll,
           baseline: baselineOk,
         },
       ),
     ).rejects.toThrow('Unsupported backup version')
   })
+
+  it('normalizes legacy v1 backups (flat feeds)', async () => {
+    const v1 = {
+      version: 1,
+      exportedAt: '2026-01-01T00:00:00Z',
+      settings: { alert_user_id: 'ignored-in-v2' },
+      feeds: [
+        {
+          id: 'feed-x',
+          name: 'X',
+          url: 'https://x',
+          guildId: 'g1',
+          channelId: 'c1',
+          enabled: true,
+          intervalMinutes: 10,
+          templateText: '{title}',
+          embedJson: null,
+          batchMode: 'auto',
+          batchThreshold: 5,
+          batchMaxItems: 15,
+          maxAgeDays: 30,
+          pauseReason: null,
+          filters: [],
+          seenKeys: [],
+        },
+      ],
+    }
+    const store2 = new FeedStore(openDatabase({ dbPath: ':memory:', ensureDir: false }))
+    const results = await restoreBackup(store2, v1, {
+      guildId: 'g1',
+      channelExists: () => Promise.resolve(true),
+      actorCanManageChannel: allowAll,
+      baseline: baselineOk,
+    })
+    expect(results[0].status).toBe('restored')
+    expect(store2.getFeed('feed-x')?.channelId).toBe('c1')
+    // v1 global settings are intentionally dropped (per-channel model now).
+    expect(store2.getChannelSetting('c1', 'alert_user_id')).toBeNull()
+  })
 })
 
-describe('MonitoRSS import', () => {
+describe('MonitoRSS import (channel-scoped)', () => {
   let store: FeedStore
 
   beforeEach(() => {
@@ -168,6 +238,7 @@ describe('MonitoRSS import', () => {
       guildId: 'g1',
       fallbackChannelId: 'fallback-channel',
       channelExists: (_g, channelId) => Promise.resolve(channelId === '1100112370086465660'),
+      actorCanManageChannel: allowAll,
       defaultTemplate: DEFAULT_TEMPLATE,
       fetchImpl: stubFetch,
     })
@@ -194,6 +265,7 @@ describe('MonitoRSS import', () => {
       guildId: 'g1',
       fallbackChannelId: 'fallback',
       channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: allowAll,
       defaultTemplate: DEFAULT_TEMPLATE,
       fetchImpl: stubFetch,
     })
@@ -202,18 +274,47 @@ describe('MonitoRSS import', () => {
     expect(feeds.every((f) => f.channelId === 'fallback')).toBe(true)
   })
 
+  it('skips feeds the actor cannot manage', async () => {
+    const results = await importMonitoRssBackup(store, monitoBackup, {
+      guildId: 'g1',
+      fallbackChannelId: 'fallback',
+      channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: () => Promise.resolve(false),
+      defaultTemplate: DEFAULT_TEMPLATE,
+      fetchImpl: stubFetch,
+    })
+    expect(
+      results.filter((r) => r.status === 'skipped' && r.detail?.includes('Send Messages')),
+    ).toHaveLength(2)
+    expect(store.getAllFeeds()).toHaveLength(0)
+  })
+
   it('skips feeds already imported for the same channel', async () => {
     const options = {
       guildId: 'g1',
       fallbackChannelId: 'fallback',
       channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: allowAll,
       defaultTemplate: DEFAULT_TEMPLATE,
+      fetchImpl: stubFetch,
     }
     await importMonitoRssBackup(store, monitoBackup, options)
     const results = await importMonitoRssBackup(store, monitoBackup, options)
     expect(
       results.filter((r) => r.status === 'skipped' && r.detail?.includes('already exists')),
     ).toHaveLength(2)
+  })
+
+  it('maps profile.alert to the target channel settings', async () => {
+    await importMonitoRssBackup(store, monitoBackup, {
+      guildId: 'g1',
+      fallbackChannelId: 'fallback',
+      channelExists: () => Promise.resolve(false),
+      actorCanManageChannel: allowAll,
+      defaultTemplate: DEFAULT_TEMPLATE,
+      fetchImpl: stubFetch,
+    })
+    expect(store.getChannelSetting('fallback', 'alert_user_id')).toBe('189283824008429568')
   })
 
   it('rejects non-MonitoRSS JSON', async () => {
@@ -225,8 +326,8 @@ describe('MonitoRSS import', () => {
           guildId: 'g1',
           fallbackChannelId: 'c',
           channelExists: () => Promise.resolve(true),
+          actorCanManageChannel: allowAll,
           defaultTemplate: DEFAULT_TEMPLATE,
-          fetchImpl: stubFetch,
         },
       ),
     ).rejects.toThrow('feeds')
@@ -239,6 +340,7 @@ describe('MonitoRSS import', () => {
       guildId: 'g1',
       fallbackChannelId: 'fallback',
       channelExists: () => Promise.resolve(true),
+      actorCanManageChannel: allowAll,
       defaultTemplate: DEFAULT_TEMPLATE,
       fetchImpl: stubFetch,
     })

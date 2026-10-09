@@ -33,10 +33,10 @@ Les commandes slash sont enregistrées globalement au premier démarrage (compte
 
 ## Commandes Discord
 
-**Modèle de droits (par channel)** :
+**Modèle de droits (par channel)** — tout est géré depuis le channel concerné :
 
 - **Configurer les feeds d'un channel** (`/feed …`) : il suffit d'avoir la permission **Envoyer des messages** dans ce channel (les admins serveur ont tous les droits). Impossible de modifier par erreur la config d'un autre channel : les commandes ciblant un autre channel sont refusées.
-- **Commandes globales** (`/import`, `/backup`, `/settings`) : réservées à la permission **Manage Server** (elles touchent tout le serveur).
+- **`/settings`, `/import`, `/backup`** : opèrent aussi **par channel** (le channel courant), avec la même exigence de droit d'écriture. `/backup export all_channels:true` (tout le serveur) reste réservée à **Manage Server**.
 - **Lecture seule** (`/status`, `/debug`) : ouvert à tous, en messages éphémères.
 - L'autocomplétion des ids ne propose que les feeds des channels que vous pouvez gérer.
 
@@ -58,10 +58,10 @@ Les commandes slash sont enregistrées globalement au premier démarrage (compte
 | `/feed refresh id` | Vérifier immédiatement |
 | `/debug feed id` | **Dry-run** : fetch + rapport détaillé (articles vus/nouvelles/bloqués, rendu du template, erreurs) sans rien modifier |
 | `/debug system` | Diagnostics : mémoire, files d'envoi, scheduler, version |
-| `/import monitorss file [channel]` | Importer un backup MonitoRSS (pièce jointe `.json`) |
-| `/backup export` | Exporter toute la configuration (JSON en pièce jointe) |
-| `/backup restore file` | Restaurer un backup (pièce jointe `.json`) |
-| `/settings alert [user] [channel]` | Destinataire des alertes d'échec |
+| `/import monitorss file [channel]` | Importer un backup MonitoRSS dans ce channel (les channels du backup nécessitent le droit d'écriture, sinon le feed est ignoré) |
+| `/backup export [channel] [all_channels]` | Exporter la config — **channel courant par défaut** ; `all_channels:true` (Manage Server) pour tout le serveur |
+| `/backup restore file` | Restaurer un backup (pièce jointe `.json`) — chaque channel du backup exige le droit d'écriture |
+| `/settings alert [user] [channel]` | Alertes d'échec **pour ce channel** (exécuter la commande dans le channel à configurer) |
 | `/status` | Santé du bot : flux en échec, files d'envoi, scheduler |
 
 `id` accepte l'autocomplétion (tapez le nom du flux).
@@ -105,10 +105,14 @@ Quand N nouveaux articles arrivent dans le même cycle de vérification :
 
 ## Backup / restauration
 
-- `/backup export` : JSON versionné (feeds, filtres, settings, **clés des articles vus** → restauration sans doublon ni rafale rejouée)
-- `/backup restore` : upsert par id stable ; les flux dont le channel n'existe plus sont importés **en pause** (remappez avec `/feed move`)
-- Auto-backup quotidien dans `data/backups/` (rotation 7 jours, heure via `BACKUP_HOUR`)
+- `/backup export` : JSON versionné **v2 groupé par channel** (feeds + filtres + réglages du channel + **clés des articles vus** → restauration sans doublon ni rafale rejouée). Par défaut, exporte uniquement le channel courant ; `all_channels:true` (Manage Server) exporte tout.
+- `/backup restore` : upsert par UUID stable ; **chaque channel du backup exige le droit d'écriture** (sinon le groupe est ignoré) ; les flux dont le channel n'existe plus sont importés en pause (remappez avec `/feed move`). Les backups v1 (anciens exports) sont convertis automatiquement (les réglages globaux v1 sont ignorés).
+- Auto-backup quotidien dans `data/backups/` (rotation 7 jours, heure via `BACKUP_HOUR`) — lui, exporte toujours tous les channels.
 - CLI optionnel : `npm run backup` / `npm run restore -- fichier.json` / `npm run import -- backup.json --guild <id> --channel <id>`
+
+## Réglages par channel
+
+`/settings alert` attaché au channel où la commande est lancée : quand un feed de ce channel tombe en panne (3 échecs consécutifs), le bot DM l'utilisateur configuré et/ou poste dans le channel configuré. Les alertes d'un channel sont indépendantes des autres. L'import MonitoRSS repositionne automatiquement `profile.alert` sur le channel d'import.
 
 ## Import MonitoRSS
 
