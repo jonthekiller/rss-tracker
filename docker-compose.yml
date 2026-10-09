@@ -4,6 +4,9 @@ services:
     image: rrs-tracker:latest
     container_name: rrs-tracker
     restart: unless-stopped
+    # Run as the host user so the ./data bind mount stays accessible
+    # (LOCAL_UID/LOCAL_GID in .env, defaults to 1000:1000).
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
     env_file: .env
     volumes:
       - ./data:/app/data

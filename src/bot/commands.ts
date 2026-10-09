@@ -164,7 +164,14 @@ export function buildCommandPayloads() {
 export async function registerCommands(client: Client): Promise<void> {
   if (!client.user) throw new Error('Client not ready')
   const rest = new REST().setToken(client.token ?? '')
+  // Global registration + per-guild registration (guild commands are
+  // available instantly instead of after Discord's global cache refresh).
   await rest.put(Routes.applicationCommands(client.user.id), { body: buildCommandPayloads() })
+  for (const guild of client.guilds.cache.values()) {
+    await rest.put(Routes.applicationGuildCommands(client.user.id, guild.id), {
+      body: buildCommandPayloads(),
+    })
+  }
 }
 
 export async function handleInteraction(

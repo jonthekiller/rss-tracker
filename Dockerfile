@@ -25,7 +25,9 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 
-RUN groupadd -r bot && useradd -r -g bot bot \
+# Readable by any runtime UID (the container may run as the host user).
+RUN chmod -R a+rX /app \
+  && groupadd -r bot && useradd -r -g bot bot \
   && mkdir -p /app/data && chown -R bot:bot /app
 
 USER bot
