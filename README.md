@@ -10,6 +10,7 @@ Bot Discord léger auto-hébergé pour surveiller des flux RSS — une alternati
 - 🔎 Filtres include/exclude par mot-clé ou regex (titre, description)
 - ⏱️ Fréquence de vérification par feed (défaut 10 min), GET conditionnels (ETag/Last-Modified), backoff exponentiel en cas d'échec
 - 🔔 Alertes d'échec : DM ou message quand un feed tombe en panne (3 échecs consécutifs)
+- 🔒 Droits par channel : n'importe qui pouvant écrire dans un channel peut en configurer les feeds (admins serveur : tous les droits)
 - 💾 SQLite embarquée (aucun MongoDB/Redis), import **MonitoRSS** et backup/restore complets **depuis Discord**
 - 🐳 Image Docker ~250 MB, ~100–150 MB RAM, CPU quasi nul hors vérifications
 
@@ -32,7 +33,12 @@ Les commandes slash sont enregistrées globalement au premier démarrage (compte
 
 ## Commandes Discord
 
-Toutes les commandes nécessitent la permission **Manage Server**.
+**Modèle de droits (par channel)** :
+
+- **Configurer les feeds d'un channel** (`/feed …`) : il suffit d'avoir la permission **Envoyer des messages** dans ce channel (les admins serveur ont tous les droits). Impossible de modifier par erreur la config d'un autre channel : les commandes ciblant un autre channel sont refusées.
+- **Commandes globales** (`/import`, `/backup`, `/settings`) : réservées à la permission **Manage Server** (elles touchent tout le serveur).
+- **Lecture seule** (`/status`, `/debug`) : ouvert à tous, en messages éphémères.
+- L'autocomplétion des ids ne propose que les feeds des channels que vous pouvez gérer.
 
 | Commande | Description |
 |---|---|

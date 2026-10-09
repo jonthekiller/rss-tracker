@@ -48,6 +48,46 @@ function requireManageGuild(interaction: ChatInputCommandInteraction): boolean {
   )
 }
 
+function isAdmin(
+  interaction: ChatInputCommandInteraction | ModalSubmitInteraction | AutocompleteInteraction,
+): boolean {
+  return (
+    interaction.inGuild() &&
+    (interaction.memberPermissions?.has(PermissionFlagsBits.ManageGuild) ?? false)
+  )
+}
+
+/**
+ * Channel-scoped permission model: a user may configure the feeds of a
+ * channel if they can WRITE in that channel (view + send). Server
+ * administrators bypass the check. This keeps configuration rights tied to
+ * the channel itself instead of a server-wide role.
+ */
+async function canManageChannel(
+  interaction: ChatInputCommandInteraction | ModalSubmitInteraction,
+  channelId: string,
+): Promise<boolean> {
+  if (!interaction.inGuild()) return false
+  if (isAdmin(interaction)) return true
+  const guild = interaction.guild
+  if (!guild) return false
+  const channel = guild.channels.cache.get(channelId)
+  const member = guild.members.cache.get(interaction.user.id)
+  if (!channel || !member) return false
+  const perms = channel.permissionsFor(member)
+  return perms.has(PermissionFlagsBits.ViewChannel) && perms.has(PermissionFlagsBits.SendMessages)
+}
+
+async function denyChannelAccess(
+  interaction: ChatInputCommandInteraction,
+  channelId: string,
+): Promise<void> {
+  await reply(
+    interaction,
+    `🔒 You need the **Send Messages** permission in <#${channelId}> to configure its feeds. (Server administrators can always configure.)`,
+  )
+}
+
 function channelExists(context: BotContext, guildId: string, channelId: string): Promise<boolean> {
   return Promise.resolve(
     context.client.guilds.cache.get(guildId)?.channels.cache.has(channelId) ?? false,
@@ -146,7 +186,11 @@ export async function handleInteraction(
     await interaction.reply({ content: 'Unknown command.', flags: MessageFlags.Ephemeral })
     return
   }
-  if (!requireManageGuild(interaction)) {
+  // Server-wide commands (import, backup, settings) require Manage Server.
+  // Feed commands enforce channel-scoped permissions inside their handlers:
+  // you can configure the feeds of a channel you can write in.
+  const SERVER_WIDE_COMMANDS = new Set(['import', 'backup', 'settings'])
+  if (SERVER_WIDE_COMMANDS.has(interaction.commandName) && !requireManageGuild(interaction)) {
     await interaction.reply({
       content: 'You need the **Manage Server** permission to use this command.',
       flags: MessageFlags.Ephemeral,
@@ -170,9 +214,20 @@ async function handleAutocomplete(
     await interaction.respond([])
     return
   }
+  const guild = interaction.guild
   const feeds = context.store.getFeedsForGuild(interaction.guildId ?? '')
+  // Only suggest feeds of channels the user can manage (write access or admin).
+  const member = guild?.members.cache.get(interaction.user.id)
+  const manageable = feeds.filter((f) => {
+    if (f.guildId !== interaction.guildId) return false
+    if (isAdmin(interaction)) return true
+    const channel = guild?.channels.cache.get(f.channelId)
+    if (!channel || !member) return false
+    const perms = channel.permissionsFor(member)
+    return perms.has(PermissionFlagsBits.ViewChannel) && perms.has(PermissionFlagsBits.SendMessages)
+  })
   const query = focused.value.toLowerCase()
-  const choices = feeds
+  const choices = manageable
     .filter((f) => f.name.toLowerCase().includes(query) || f.id.startsWith(query))
     .slice(0, 25)
     .map((f) => ({ name: `${f.name} (${f.id.slice(0, 8)})`, value: f.id }))
@@ -437,6 +492,16 @@ async function getFeedOrReply(
     await reply(interaction, `Feed \`${id}\` not found. Use \`/feed list\` to see ids.`)
     return null
   }
+  // The feed must belong to this server, and the user must be allowed to
+  // manage the channel it posts into (write access or server admin).
+  if (feed.guildId !== interaction.guildId) {
+    await reply(interaction, `Feed \`${id}\` not found. Use \`/feed list\` to see ids.`)
+    return null
+  }
+  if (!(await canManageChannel(interaction, feed.channelId))) {
+    await denyChannelAccess(interaction, feed.channelId)
+    return null
+  }
   return feed
 }
 
@@ -449,6 +514,12 @@ async function feedAdd(
   const channel = interaction.options.getChannel('channel')
   const channelId = channel?.id ?? interaction.channelId
   const name = interaction.options.getString('name')?.trim() || 'Unknown'
+
+  // You can only add feeds to a channel you can write in.
+  if (!(await canManageChannel(interaction, channelId))) {
+    await denyChannelAccess(interaction, channelId)
+    return
+  }
 
   try {
     new URL(url)
@@ -508,9 +579,20 @@ async function feedList(
   interaction: ChatInputCommandInteraction,
 ): Promise<void> {
   const channel = interaction.options.getChannel('channel')
-  const feeds = channel
-    ? context.store.getFeedsForChannel(channel.id)
-    : context.store.getFeedsForGuild(interaction.guildId ?? '')
+  let feeds: Feed[]
+  if (channel) {
+    // Listing another channel's feeds requires write access there.
+    if (!(await canManageChannel(interaction, channel.id))) {
+      await denyChannelAccess(interaction, channel.id)
+      return
+    }
+    feeds = context.store.getFeedsForChannel(channel.id)
+  } else if (isAdmin(interaction)) {
+    feeds = context.store.getFeedsForGuild(interaction.guildId ?? '')
+  } else {
+    // Non-admins only see the feeds of the channel they are typing in.
+    feeds = context.store.getFeedsForChannel(interaction.channelId)
+  }
   if (feeds.length === 0) {
     await reply(interaction, 'No feeds found. Add one with `/feed add`.')
     return
@@ -601,6 +683,11 @@ async function feedMove(
   const resolved = interaction.guild?.channels.cache.get(channel.id)
   if (!resolved?.isTextBased() || !resolved.isSendable()) {
     await reply(interaction, 'The target must be a text channel I can write to.')
+    return
+  }
+  // Moving requires write access on the destination channel too.
+  if (!(await canManageChannel(interaction, channel.id))) {
+    await denyChannelAccess(interaction, channel.id)
     return
   }
   context.store.updateFeed(feed.id, { channelId: channel.id, pauseReason: null })
@@ -1143,11 +1230,22 @@ async function handleModalSubmit(
 ): Promise<void> {
   const [customId, feedId] = interaction.customId.split(':')
   if (!feedId) return
-  if (!requireManageGuild(interaction as unknown as ChatInputCommandInteraction)) return
+  if (!interaction.inGuild()) return
 
   const feed = context.store.getFeed(feedId)
   if (!feed) {
     await interaction.reply({ content: 'Feed no longer exists.', flags: MessageFlags.Ephemeral })
+    return
+  }
+  // Modals edit a feed's template: enforce the channel-scoped permission.
+  if (
+    feed.guildId !== interaction.guildId ||
+    !(await canManageChannel(interaction, feed.channelId))
+  ) {
+    await interaction.reply({
+      content: `🔒 You need the **Send Messages** permission in <#${feed.channelId}> to edit this feed's templates.`,
+      flags: MessageFlags.Ephemeral,
+    })
     return
   }
 
