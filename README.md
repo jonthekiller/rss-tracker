@@ -114,11 +114,19 @@ Quand N nouveaux articles arrivent dans le même cycle de vérification :
 
 `/settings alert` attaché au channel où la commande est lancée : quand un feed de ce channel tombe en panne (3 échecs consécutifs), le bot DM l'utilisateur configuré et/ou poste dans le channel configuré. Les alertes d'un channel sont indépendantes des autres. L'import MonitoRSS repositionne automatiquement `profile.alert` sur le channel d'import.
 
-## Import MonitoRSS
+## Import MonitoRSS (v6)
 
-1. Sur votre instance MonitoRSS : commandes `backup` (ou export web) → récupérez le JSON
-2. Dans Discord : `/import monitorss file:<backup.json>`
-3. Rapport par flux : ✅ importé / ⚠️ / ❌ — templates, filtres inclus (`filters` et `rfilters`) conservés ; chaque flux est « baseline » (rien ne sera renvoyé pour les articles déjà postés par MonitoRSS)
+Le format attendu est le backup **MonitoRSS v6** : celui produit par la commande `backup` du bot MonitoRSS v6 (ou l'export de MonitoRSS-Web v6). Les backups d'anciennes versions (v4/v5, ex. Discord.RSS) ne sont pas garantis — mettez à jour MonitoRSS ou exportez depuis une instance v6.
+
+1. Sur votre instance MonitoRSS v6 : commande `backup` (ou export web) → récupérez le JSON
+2. Dans Discord : `/import monitorss file:<backup.json>` dans le channel de destination
+3. Rapport par flux : ✅ importé / ⚠️ / ❌
+
+**Ce qui est conservé** : `title`, `url`, `text` (template tel quel), `embeds` (premier embed), les filtres d'inclusion `filters` et `rfilters` (regex), et `profile.alert` → configuré comme alerte d'échec du channel d'import.
+
+**Ce qui est ignoré** : `checkDates`, `ncomparisons`/`pcomparisons`, `regexOps`, `filteredFormats`, `subscribers`, supporters/patrons (pas d'équivalent dans RRS-Tracker).
+
+Chaque flux importé est « baseline » : les articles déjà publiés au moment de l'import sont marqués vus, **rien ne sera renvoyé** pour ce que MonitoRSS a déjà posté.
 
 ## Variables d'environnement
 
