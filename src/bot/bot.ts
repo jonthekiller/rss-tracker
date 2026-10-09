@@ -111,6 +111,9 @@ export async function startBot(): Promise<void> {
   await client.login(config.discordToken)
   startBotContext(context)
 
+  scheduler.start()
+  log.info({ feeds: store.getAllFeeds().length }, 'Scheduler started')
+
   const shutdown = async () => {
     log.info('Shutting down')
     scheduler.stop()
