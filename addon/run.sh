@@ -1,10 +1,10 @@
 #!/bin/sh
-# RRS-Tracker Home Assistant add-on entrypoint.
+# RSS-Tracker Home Assistant add-on entrypoint.
 # Reads /data/options.json (written by the Supervisor) and exports env vars.
 set -e
 
 # Persistent storage lives in /data (mapped by Home Assistant).
-export DB_PATH="/data/rrs-tracker.db"
+export DB_PATH="/data/rss-tracker.db"
 
 if [ -f /data/options.json ]; then
   # export-options.js prints "export KEY='value'" lines from the options file.

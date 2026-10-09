@@ -1010,7 +1010,7 @@ const backupCommand: CommandHandler = {
       const feedCount = backup.channels.reduce((sum, c) => sum + c.feeds.length, 0)
       const buffer = Buffer.from(JSON.stringify(backup, null, 2), 'utf-8')
       const file = new AttachmentBuilder(buffer, {
-        name: `rrs-backup-${new Date().toISOString().slice(0, 10)}.json`,
+        name: `rss-backup-${new Date().toISOString().slice(0, 10)}.json`,
       })
       await interaction.reply({
         content: `💾 Backup (${scopeLabel}): ${feedCount} feed(s) in ${backup.channels.length} channel(s), exported ${backup.exportedAt}`,
@@ -1240,7 +1240,7 @@ const debugCommand: CommandHandler = {
       `Scheduler: ${context.scheduler.isSuspended() ? 'suspended (import/restore)' : 'running'}`,
       `Bot user: ${context.client.user?.tag ?? 'not ready'}`,
       '',
-      '💡 Container logs: `docker logs -f rrs-tracker` (or the add-on log page).',
+      '💡 Container logs: `docker logs -f rss-tracker` (or the add-on log page).',
     ]
     await reply(interaction, chunkLines(lines)[0] ?? 'No data.')
   },
@@ -1257,7 +1257,7 @@ const statusCommand: CommandHandler = {
     const enabled = feeds.filter((f) => f.enabled).length
     const failing = feeds.filter((f) => f.consecutiveFailures > 0)
     const lines = [
-      `🤖 **RRS-Tracker**`,
+      `🤖 **RSS-Tracker**`,
       `Feeds: ${enabled}/${feeds.length} enabled, ${feeds.length - enabled} paused`,
       `Failing: ${failing.length}`,
       `Send queue: ${context.sender.totalDepth()} message(s) pending`,

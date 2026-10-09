@@ -15,7 +15,7 @@ export function writeAutoBackup(options: AutoBackupOptions): string | null {
   if (options.hour === null) return null
   const backup = exportBackup(options.store)
   fs.mkdirSync(options.directory, { recursive: true })
-  const filename = `rrs-backup-${isoDate(options.now?.() ?? Date.now())}.json`
+  const filename = `rss-backup-${isoDate(options.now?.() ?? Date.now())}.json`
   const filePath = path.join(options.directory, filename)
   fs.writeFileSync(filePath, JSON.stringify(backup, null, 2))
   rotate(options.directory, 7)
@@ -49,7 +49,7 @@ function isoDate(ms: number): string {
 function rotate(directory: string, keep: number): void {
   const files = fs
     .readdirSync(directory)
-    .filter((f) => f.startsWith('rrs-backup-') && f.endsWith('.json'))
+    .filter((f) => f.startsWith('rss-backup-') && f.endsWith('.json'))
     .sort()
   for (const file of files.slice(0, Math.max(0, files.length - keep))) {
     fs.rmSync(path.join(directory, file), { force: true })

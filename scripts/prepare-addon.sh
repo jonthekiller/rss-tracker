@@ -4,7 +4,7 @@
 #
 # Usage: ./scripts/prepare-addon.sh
 # Then copy the whole addon/ folder to the Host Assistant "local addons"
-# folder, e.g. /usr/share/hassio/addons/local/rrs-tracker, and add the
+# folder, e.g. /usr/share/hassio/addons/local/rss-tracker, and add the
 # repository in Settings → Add-ons → ⋮ → Repositories (or use the local path).
 set -e
 cd "$(dirname "$0")/.."

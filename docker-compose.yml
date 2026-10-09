@@ -1,8 +1,8 @@
 services:
-  rrs-tracker:
+  rss-tracker:
     build: .
-    image: rrs-tracker:latest
-    container_name: rrs-tracker
+    image: rss-tracker:latest
+    container_name: rss-tracker
     restart: unless-stopped
     # Run as the host user so the ./data bind mount stays accessible
     # (LOCAL_UID/LOCAL_GID in .env, defaults to 1000:1000).

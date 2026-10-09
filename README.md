@@ -1,4 +1,4 @@
-# RRS-Tracker
+# RSS-Tracker
 
 Bot Discord léger auto-hébergé pour surveiller des flux RSS — une alternative minimaliste à MonitoRSS.
 
@@ -125,7 +125,7 @@ Quand N nouveaux articles arrivent dans le même cycle de vérification :
 | Variable | Défaut | Description |
 |---|---|---|
 | `DISCORD_TOKEN` | — | **Requis** |
-| `DB_PATH` | `./data/rrs-tracker.db` | Fichier SQLite |
+| `DB_PATH` | `./data/rss-tracker.db` | Fichier SQLite |
 | `DEFAULT_INTERVAL_MINUTES` | `10` | Fréquence par défaut des nouveaux flux |
 | `SEND_DELAY_MS` | `1000` | Délai entre 2 messages sur un même channel |
 | `LOG_LEVEL` | `info` | trace/debug/info/warn/error |
@@ -135,7 +135,7 @@ Quand N nouveaux articles arrivent dans le même cycle de vérification :
 ## Déboguer
 
 - **Depuis Discord** : `/feed test id mode:send` poste le dernier article avec le template courant (sans marquer vu) ; `/debug feed id` fait un dry-run complet (fetch HTTP, articles détectés, filtres, rendu, état du feed, file d'envoi) ; `/status` et `/debug system` pour la santé globale.
-- **Depuis le conteneur** : les logs sont lisibles directement (`docker logs -f rrs-tracker`). Chaque échec de feed est loggé avec son nom/URL/erreur, chaque livraison avec le nombre d'articles. Passer `LOG_LEVEL=debug` pour le détail des cycles.
+- **Depuis le conteneur** : les logs sont lisibles directement (`docker logs -f rss-tracker`). Chaque échec de feed est loggé avec son nom/URL/erreur, chaque livraison avec le nombre d'articles. Passer `LOG_LEVEL=debug` pour le détail des cycles.
 
 ## Add-on Home Assistant
 

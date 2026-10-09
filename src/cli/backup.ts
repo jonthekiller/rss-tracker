@@ -8,7 +8,7 @@ import { FeedStore } from '../db/feeds.js'
 
 const config = loadConfig()
 const output =
-  process.argv[2] ?? `./data/backups/rrs-backup-${new Date().toISOString().slice(0, 10)}.json`
+  process.argv[2] ?? `./data/backups/rss-backup-${new Date().toISOString().slice(0, 10)}.json`
 const db = openDatabase({ dbPath: resolveDbPath(config.dbPath) })
 const backup = exportBackup(new FeedStore(db))
 fs.mkdirSync(output.substring(0, output.lastIndexOf('/')) || '.', { recursive: true })

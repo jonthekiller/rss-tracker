@@ -1,6 +1,6 @@
-# Add-on Home Assistant — RRS-Tracker
+# Add-on Home Assistant — RSS-Tracker
 
-Ce dossier transforme RRS-Tracker en [add-on Home Assistant](https://developers.home-assistant.io/docs/add-ons/) (utile si vous hébergez déjà Home Assistant et ne voulez pas d'un conteneur séparé).
+Ce dossier transforme RSS-Tracker en [add-on Home Assistant](https://developers.home-assistant.io/docs/add-ons/) (utile si vous hébergez déjà Home Assistant et ne voulez pas d'un conteneur séparé).
 
 ## Contenu
 
@@ -20,11 +20,11 @@ Ce dossier transforme RRS-Tracker en [add-on Home Assistant](https://developers.
 
 2. **Copier le dossier `addon/`** sur la machine Home Assistant, par exemple :
    ```bash
-   scp -r addon/ hass@homeassistant:/usr/share/hassio/addons/local/rrs-tracker
+   scp -r addon/ hass@homeassistant:/usr/share/hassio/addons/local/rss-tracker
    ```
    (sur HAOS, utilisez le Samba share `addons` ou l'add-on « File editor »)
 
-3. Dans Home Assistant : **Paramètres → Modules complémentaires → ⋮ → Dépôts** → ajouter `/usr/share/hassio/addons/local` (si ce n'est pas déjà fait), puis le module « RRS-Tracker » apparaît.
+3. Dans Home Assistant : **Paramètres → Modules complémentaires → ⋮ → Dépôts** → ajouter `/usr/share/hassio/addons/local` (si ce n'est pas déjà fait), puis le module « RSS-Tracker » apparaît.
 
 4. **Configuration** : collez votre `discord_token`, ajustez les autres options (toutes optionnelles sauf le token). Le token et les autres réglages sont traduits en variables d'environnement au démarrage.
 
@@ -33,5 +33,5 @@ Ce dossier transforme RRS-Tracker en [add-on Home Assistant](https://developers.
 ## Notes
 
 - Les commandes slash sont enregistrées globalement au démarrage du bot.
-- Logs : page « Journal » de l'add-on (sortie lisible via pino-pretty), ou `docker logs addon_local_rrs_tracker`.
+- Logs : page « Journal » de l'add-on (sortie lisible via pino-pretty), ou `docker logs addon_local_rss_tracker`.
 - L'add-on n'a besoin d'aucun accès réseau particulier au-delà d'Internet (Discord + flux RSS) : pas de `host_network`, pas d'API Home Assistant.

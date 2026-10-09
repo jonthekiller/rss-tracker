@@ -36,7 +36,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return {
     discordToken,
-    dbPath: env.DB_PATH ?? './data/rrs-tracker.db',
+    dbPath: env.DB_PATH ?? './data/rss-tracker.db',
     defaultIntervalMinutes: Math.max(2, intEnv('DEFAULT_INTERVAL_MINUTES', 10)),
     minIntervalMinutes: Math.max(1, intEnv('MIN_INTERVAL_MINUTES', 2)),
     sendDelayMs: Math.max(250, intEnv('SEND_DELAY_MS', 1000)),

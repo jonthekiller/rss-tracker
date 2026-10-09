@@ -3,7 +3,7 @@ import { parseFeed } from 'feedsmith'
 import type { Article, FeedMeta, FetchFeedResult } from './types.js'
 import { FeedFetchError } from './types.js'
 
-const USER_AGENT = 'RRS-Tracker (+https://github.com/jonthekiller/rss-tracker)'
+const USER_AGENT = 'RSS-Tracker (+https://github.com/jonthekiller/rss-tracker)'
 const TIMEOUT_MS = 15_000
 const MAX_BYTES = 10 * 1024 * 1024
 
