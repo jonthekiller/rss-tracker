@@ -1,6 +1,6 @@
 {
   "name": "RSS-Tracker",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "slug": "rss_tracker",
   "description": "Lightweight Discord RSS bot (MonitoRSS alternative) — tracks feeds and posts new articles to Discord channels",
   "url": "https://github.com/jonthekiller/ha-addons",
