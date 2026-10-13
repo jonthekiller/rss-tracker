@@ -39,7 +39,9 @@ RUN chmod -R a+rX /app \
 USER bot
 VOLUME ["/app/data"]
 
-HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
+# start-period covers Discord login on restart: with an existing database,
+# checks before the bot is ready would otherwise count as failures.
+HEALTHCHECK --interval=60s --timeout=10s --start-period=120s --retries=3 \
   CMD ["node", "dist/healthcheck.js"]
 
 ENTRYPOINT ["dumb-init", "--"]

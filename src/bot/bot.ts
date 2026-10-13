@@ -97,7 +97,10 @@ export async function startBot(): Promise<void> {
     })
   })
 
-  // Heartbeat for the Docker healthcheck.
+  // Heartbeat for the Docker healthcheck. Written immediately so a restart
+  // with an existing database doesn't fail the first checks (the stored value
+  // may be older than the freshness threshold), then every 30s.
+  kvSet(db, 'last_scheduler_tick', new Date().toISOString())
   setInterval(() => {
     kvSet(db, 'last_scheduler_tick', new Date().toISOString())
   }, 30_000).unref?.()
