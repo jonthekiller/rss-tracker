@@ -171,9 +171,9 @@ Each imported feed is "baseline": articles already published at import time are 
 
 ## Home Assistant add-on
 
-The add-on installs directly from this GitHub repository (prebuilt image, no build on the device):
+The add-on installs from the dedicated add-on repository (prebuilt image, no build on the device):
 
-1. **Settings → Add-ons → ⋮ → Repositories** → add `https://github.com/jonthekiller/rss-tracker`
+1. **Settings → Add-ons → ⋮ → Repositories** → add `https://github.com/jonthekiller/ha-addons`
 2. Install **RSS-Tracker** from the list
 3. Paste your `discord_token` in the add-on configuration and start it
 
