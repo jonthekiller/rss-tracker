@@ -24,6 +24,7 @@ L'add-on est distribué **pré-construit** : aucune compilation n'est nécessair
 | Fichier | Rôle |
 |---|---|
 | `config.json` | Manifeste add-on : options visibles dans l'UI Home Assistant + référence de l'image pré-construite |
+| `icon.png` / `logo.png` | Icônes affichées par le store Home Assistant (128×128 et 256×256) |
 | `Dockerfile` | Construit l'image add-on à partir de l'image application (`FROM jonthekiller/rss-tracker:<version>`) — utilisé par la CI |
 | `run.sh` | Point d'entrée : lit `/data/options.json`, exporte les variables d'env, lance le bot |
 | `export-options.js` | Traduit les options de l'UI en variables d'environnement |
