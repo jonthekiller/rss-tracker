@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { existsSync } from 'node:fs'
 import { exportBackup, restoreBackup } from '../src/backup/export.js'
 import { openDatabase } from '../src/db/database.js'
 import { FeedStore } from '../src/db/feeds.js'
@@ -333,22 +334,26 @@ describe('MonitoRSS import (channel-scoped)', () => {
     ).rejects.toThrow('feeds')
   })
 
-  it('imports the full real backup (22 feeds)', async () => {
-    const { readFileSync } = await import('node:fs')
-    const real = JSON.parse(readFileSync('test/fixtures/monitorss-backup.json', 'utf-8')) as object
-    const results = await importMonitoRssBackup(store, real, {
-      guildId: 'g1',
-      fallbackChannelId: 'fallback',
-      channelExists: () => Promise.resolve(true),
-      actorCanManageChannel: allowAll,
-      defaultTemplate: DEFAULT_TEMPLATE,
-      fetchImpl: stubFetch,
-    })
-    expect(results.filter((r) => r.status === 'imported')).toHaveLength(22)
-    expect(store.getAllFeeds()).toHaveLength(22)
-    // The v0. filter on hermes-webui is preserved.
-    const hermes = store.getAllFeeds().find((f) => f.name.includes('hermes-webui'))
-    expect(hermes).toBeDefined()
-    expect(store.getFilters(hermes?.id ?? '')[0]?.pattern).toBe('v0.')
-  })
+  // Skipped when the fixture is absent (it is not shipped in the public repo).
+  it.runIf(existsSync('test/fixtures/monitorss-backup.json'))(
+    'imports the full real backup (22 feeds)',
+    async () => {
+      const { readFileSync } = await import('node:fs')
+      const real = JSON.parse(readFileSync('test/fixtures/monitorss-backup.json', 'utf-8')) as object
+      const results = await importMonitoRssBackup(store, real, {
+        guildId: 'g1',
+        fallbackChannelId: 'fallback',
+        channelExists: () => Promise.resolve(true),
+        actorCanManageChannel: allowAll,
+        defaultTemplate: DEFAULT_TEMPLATE,
+        fetchImpl: stubFetch,
+      })
+      expect(results.filter((r) => r.status === 'imported')).toHaveLength(22)
+      expect(store.getAllFeeds()).toHaveLength(22)
+      // The v0. filter on hermes-webui is preserved.
+      const hermes = store.getAllFeeds().find((f) => f.name.includes('hermes-webui'))
+      expect(hermes).toBeDefined()
+      expect(store.getFilters(hermes?.id ?? '')[0]?.pattern).toBe('v0.')
+    },
+  )
 })

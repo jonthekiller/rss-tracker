@@ -1,34 +1,34 @@
-# Add-on Home Assistant — RSS-Tracker
+# Home Assistant add-on — RSS-Tracker
 
-L'add-on est distribué **pré-construit** : aucune compilation n'est nécessaire sur le device.
+The add-on ships **prebuilt**: no compilation needed on the device.
 
 ## Installation
 
-1. Dans Home Assistant : **Paramètres → Modules complémentaires → ⋮ → Dépôts** → ajoutez :
+1. In Home Assistant: **Settings → Add-ons → ⋮ → Repositories** → add:
    ```
    https://github.com/jonthekiller/rss-tracker
    ```
-2. Le module **RSS-Tracker** apparaît — installez-le.
-3. Dans **Configuration**, collez votre `discord_token` (les autres options sont optionnelles) — elles sont traduites en variables d'environnement au démarrage.
-4. **Démarrer**. Les données (SQLite + backups) vivent dans `/data` — persistantes et incluses dans les sauvegardes Home Assistant.
+2. **RSS-Tracker** appears in the list — install it.
+3. In **Configuration**, paste your `discord_token` (other options are optional) — they are translated into environment variables at startup.
+4. **Start**. Data (SQLite + backups) lives in `/data` — persistent and included in Home Assistant backups.
 
 ## Notes
 
-- Les commandes slash sont enregistrées globalement au démarrage du bot.
-- Logs : page « Journal » de l'add-on, ou `docker logs addon_local_rss_tracker`.
-- L'add-on n'a besoin d'aucun accès réseau particulier au-delà d'Internet (Discord + flux RSS) : pas de `host_network`, pas d'API Home Assistant.
-- Image tirée de Docker Hub : `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>` — construite par GitHub Actions à chaque tag `v*`.
+- Slash commands are registered globally at bot startup.
+- Logs: the add-on "Log" page, or `docker logs addon_local_rss_tracker`.
+- The add-on needs no special network access beyond the Internet (Discord + RSS feeds): no `host_network`, no Home Assistant API.
+- Image pulled from Docker Hub: `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>` — built by GitHub Actions on every `v*` tag.
 
-## Contenu
+## Contents
 
-| Fichier | Rôle |
+| File | Role |
 |---|---|
-| `config.json` | Manifeste add-on : options visibles dans l'UI Home Assistant + référence de l'image pré-construite |
-| `icon.png` / `logo.png` | Icônes affichées par le store Home Assistant (128×128 et 256×256) |
-| `Dockerfile` | Construit l'image add-on à partir de l'image application (`FROM jonthekiller/rss-tracker:<version>`) — utilisé par la CI |
-| `run.sh` | Point d'entrée : lit `/data/options.json`, exporte les variables d'env, lance le bot |
-| `export-options.js` | Traduit les options de l'UI en variables d'environnement |
+| `config.json` | Add-on manifest: options shown in the Home Assistant UI + prebuilt image reference |
+| `icon.png` / `logo.png` | Icons shown by the Home Assistant add-on store (128×128 and 256×256) |
+| `Dockerfile` | Builds the add-on image from the application image (`FROM jonthekiller/rss-tracker:<version>`) — used by CI |
+| `run.sh` | Entrypoint: reads `/data/options.json`, exports env vars, starts the bot |
+| `export-options.js` | Translates UI options into environment variables |
 
-## Mise à jour d'une release
+## Releasing a new version
 
-Le numéro de version de `config.json` doit correspondre au tag git (`v1.0.0` → `1.0.0`) : la CI le vérifie et refuse de publier sinon. Pour publier une nouvelle version de l'add-on, bump `version` dans `config.json` **et** `package.json` en même temps.
+The version in `config.json` must match the git tag (`v1.0.0` → `1.0.0`): CI enforces it and refuses to publish otherwise. To release a new add-on version, bump `version` in `config.json` **and** `package.json` at the same time.
