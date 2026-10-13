@@ -14,4 +14,9 @@ COPY --chmod=0755 run.sh export-options.js /usr/local/bin/
 # write its SQLite database and backups there.
 USER root
 
+# Baked into the image so the Docker healthcheck (which only sees the static
+# container env, not the env exported by run.sh) reads the same database as
+# the bot process. run.sh exports the same value at runtime.
+ENV DB_PATH=/data/rss-tracker.db
+
 CMD [ "/usr/local/bin/run.sh" ]

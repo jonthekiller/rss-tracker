@@ -1,14 +1,18 @@
 // Docker HEALTHCHECK: verify the database opens and the scheduler heartbeat is recent.
 import fs from 'node:fs'
 import process from 'node:process'
-import { loadConfig, resolveDbPath } from './config.js'
+import { resolveDbPath } from './config.js'
 import { kvGet, openDatabase } from './db/database.js'
 
 const MAX_AGE_MS = 10 * 60_000
 
 try {
-  const config = loadConfig()
-  const dbPath = resolveDbPath(config.dbPath)
+  // Deliberately independent from loadConfig():
+  // - it must not require DISCORD_TOKEN (the healthcheck process does not
+  //   inherit env vars exported at runtime, e.g. Home Assistant add-on
+  //   options translated by the entrypoint — only the main process sees them)
+  // - DB_PATH is read directly, with the same default as config.ts
+  const dbPath = resolveDbPath(process.env.DB_PATH ?? './data/rss-tracker.db')
   if (!fs.existsSync(dbPath)) {
     // First boot, database not created yet: not an error.
     process.exit(0)
