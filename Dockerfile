@@ -4,6 +4,12 @@
 FROM node:24-slim AS build
 WORKDIR /app
 
+# Build tools for better-sqlite3 if no prebuilt binary matches the platform
+# (kept in the build stage only — never in the runtime image).
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 RUN npm ci
 

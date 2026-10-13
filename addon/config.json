@@ -4,6 +4,7 @@
   "slug": "rss_tracker",
   "description": "Lightweight Discord RSS bot (MonitoRSS alternative) — tracks feeds and posts new articles to Discord channels",
   "url": "https://github.com/jonthekiller/rss-tracker",
+  "image": "jonthekiller/rss-tracker-addon-{arch}",
   "arch": ["aarch64", "amd64"],
   "startup": "services",
   "boot": "auto",

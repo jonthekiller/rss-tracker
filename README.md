@@ -1,5 +1,9 @@
 # RSS-Tracker
 
+[![CI](https://github.com/jonthekiller/rss-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/jonthekiller/rss-tracker/actions/workflows/ci.yml)
+[![Docker Hub](https://img.shields.io/docker/v/jonthekiller/rss-tracker?sort=semver&label=docker)](https://hub.docker.com/r/jonthekiller/rss-tracker)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Bot Discord léger auto-hébergé pour surveiller des flux RSS — une alternative minimaliste à MonitoRSS.
 
 **Caractéristiques :**
@@ -16,13 +20,23 @@ Bot Discord léger auto-hébergé pour surveiller des flux RSS — une alternati
 
 ## Installation (Docker)
 
-```bash
-git clone git@jonthekiller.synology.me:jonthekiller/rss-tracker.git
-cd rss-tracker
-cp .env.example .env
-# Éditez .env : renseignez DISCORD_TOKEN
+Image publiée sur [Docker Hub](https://hub.docker.com/r/jonthekiller/rss-tracker) (multi-architecture `amd64` / `arm64`) :
 
-docker compose up -d --build
+```bash
+mkdir rss-tracker && cd rss-tracker
+curl -o docker-compose.yml https://raw.githubusercontent.com/jonthekiller/rss-tracker/main/docker-compose.yml
+curl -o .env.example https://raw.githubusercontent.com/jonthekiller/rss-tracker/main/.env.example
+cp .env.example .env
+# Éditez .env : renseignez DISCORD_TOKEN (et ajustez LOCAL_UID/LOCAL_GID à votre utilisateur)
+
+docker compose up -d
+```
+
+Ou en une commande :
+
+```bash
+docker run -d --name rss-tracker --restart unless-stopped \
+  -e DISCORD_TOKEN=xxx -v ./data:/app/data jonthekiller/rss-tracker:latest
 ```
 
 Créez le bot sur le [portail développeur Discord](https://discord.com/developers/applications) :
@@ -30,6 +44,15 @@ Créez le bot sur le [portail développeur Discord](https://discord.com/develope
 2. Invitation : OAuth2 → URL Generator → scopes `bot` + `applications.commands`, permission *Manage Server* recommandée pour l'installation
 
 Les commandes slash sont enregistrées globalement au premier démarrage (comptez jusqu'à ~1 h pour la propagation Discord, immédiat sur les serveurs où le bot est présent via reconnexion).
+
+### Depuis les sources
+
+```bash
+git clone https://github.com/jonthekiller/rss-tracker.git
+cd rss-tracker
+cp .env.example .env   # renseignez DISCORD_TOKEN
+docker compose up -d --build
+```
 
 ## Commandes Discord
 
@@ -139,6 +162,7 @@ Chaque flux importé est « baseline » : les articles déjà publiés au moment
 | `LOG_LEVEL` | `info` | trace/debug/info/warn/error |
 | `BACKUP_HOUR` | `3` | Heure de l'auto-backup (vide = désactivé) |
 | `TIMEZONE` | `UTC` | Fuseau pour `{date}` |
+| `LOCAL_UID` / `LOCAL_GID` | `1000` | UID/GID du process dans le container (docker compose uniquement — doit correspondre au propriétaire de `./data`) |
 
 ## Déboguer
 
@@ -147,7 +171,15 @@ Chaque flux importé est « baseline » : les articles déjà publiés au moment
 
 ## Add-on Home Assistant
 
-Voir [addon/README.md](addon/README.md) : le projet peut tourner comme add-on Home Assistant (données persistées dans `/data`, configuration via l'UI des add-ons). Préparer avec `./scripts/prepare-addon.sh` puis copier `addon/` dans les add-ons locaux.
+L'add-on s'installe directement depuis ce dépôt GitHub (image pré-construite, aucun build sur le device) :
+
+1. **Paramètres → Modules complémentaires → ⋮ → Dépôts** → ajoutez `https://github.com/jonthekiller/rss-tracker`
+2. Installez **RSS-Tracker** qui apparaît dans la liste
+3. Collez votre `discord_token` dans la configuration de l'add-on et démarrez
+
+Les données (SQLite + backups) vivent dans `/data` — persistantes et incluses dans les sauvegardes Home Assistant. Voir [addon/README.md](addon/README.md) pour les détails.
+
+> Alternative sans image pré-construite : le projet peut aussi être construit manuellement sur le device (voir l'historique de `addon/`).
 
 ## Développement
 
@@ -158,6 +190,15 @@ npm test             # vitest
 npm run lint         # biome
 npm run build        # tsc → dist/
 ```
+
+## Publication d'une nouvelle version (mainteneurs)
+
+1. Bump `version` dans `package.json` **et** `addon/config.json` (identiques)
+2. Commit, puis `git tag v0.3.x && git push origin main --tags`
+3. Le workflow [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) construit et publie automatiquement :
+   - `jonthekiller/rss-tracker:<version>` + `:latest` (amd64 + arm64)
+   - `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>`
+4. Secrets requis dans le repo GitHub : `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (jamais de token en dur dans le code)
 
 ## Architecture
 

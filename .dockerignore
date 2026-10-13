@@ -1,0 +1,24 @@
+# Secrets & données locales — ne doivent jamais entrer dans le contexte de build
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Dépendances et artifacts de build
+node_modules/
+dist/
+coverage/
+*.log
+
+# Git & CI
+.git/
+.github/
+
+# Add-on Home Assistant (construit séparément, voir addon/)
+addon/
+
+# Divers
+test/
+scripts/
+README.md

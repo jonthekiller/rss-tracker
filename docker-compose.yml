@@ -1,7 +1,6 @@
 services:
   rss-tracker:
-    build: .
-    image: rss-tracker:latest
+    image: jonthekiller/rss-tracker:latest
     container_name: rss-tracker
     restart: unless-stopped
     # Run as the host user so the ./data bind mount stays accessible
