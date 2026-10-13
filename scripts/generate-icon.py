@@ -13,10 +13,10 @@ from PIL import Image, ImageDraw
 
 SIZE = 2048  # drawn at 4x, downscaled for clean antialiasing
 RADIUS = 440
-GRAD_TOP = (108, 121, 240)   # #6C79F0
-GRAD_BOTTOM = (71, 82, 196)  # #4752C4
+GRAD_TOP = (99, 112, 246)    # #6370F6 (Discord blurple gradient)
+GRAD_BOTTOM = (79, 92, 236)  # #4F5CEC
 WHITE = (255, 255, 255, 255)
-RED = (237, 66, 69)          # #ED4245 (Discord red)
+GREEN = (35, 165, 90)        # #23A55A (Discord green — "online" badge)
 
 DOT = (760, 1280)   # RSS glyph dot (bottom-left of the glyph)
 ARC_R1 = 340
@@ -57,10 +57,10 @@ def draw_glyph(img: Image.Image) -> None:
             fill=WHITE,
             width=STROKE,
         )
-    # Notification badge: red core with a white ring
+    # Notification badge: green core with a white ring
     ring = BADGE_R + BADGE_RING
     d.ellipse((BADGE[0] - ring, BADGE[1] - ring, BADGE[0] + ring, BADGE[1] + ring), fill=WHITE)
-    d.ellipse((BADGE[0] - BADGE_R, BADGE[1] - BADGE_R, BADGE[0] + BADGE_R, BADGE[1] + BADGE_R), fill=RED + (255,))
+    d.ellipse((BADGE[0] - BADGE_R, BADGE[1] - BADGE_R, BADGE[0] + BADGE_R, BADGE[1] + BADGE_R), fill=GREEN + (255,))
 
 
 def main() -> None:
