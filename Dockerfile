@@ -22,8 +22,10 @@ FROM node:24-slim AS runtime
 ENV NODE_ENV=production
 WORKDIR /app
 
-# dumb-init: proper PID 1 signal handling
+# dumb-init: proper PID 1 signal handling. Security upgrade of the base
+# Debian packages so each build ships the latest published patches.
 RUN apt-get update \
+  && apt-get upgrade -y \
   && apt-get install -y --no-install-recommends dumb-init \
   && rm -rf /var/lib/apt/lists/*
 
