@@ -8,8 +8,7 @@
 ARG VERSION=latest
 FROM jonthekiller/rss-tracker:${VERSION}
 
-COPY run.sh export-options.js /usr/local/bin/
-RUN chmod +x /usr/local/bin/run.sh
+COPY --chmod=0755 run.sh export-options.js /usr/local/bin/
 
 # Run as root: the Supervisor mounts /data and the add-on must be able to
 # write its SQLite database and backups there.
