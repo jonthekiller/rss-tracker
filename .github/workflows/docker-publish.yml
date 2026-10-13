@@ -87,3 +87,23 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}-addon-${{ matrix.ha_arch }}:${{ steps.version.outputs.version }}
           build-args: VERSION=${{ steps.version.outputs.version }}
+
+  sync-addons-repo:
+    name: Trigger ha-addons repository sync
+    # Après publication des images, demande au repository d'add-ons
+    # jonthekiller/ha-addons de synchroniser son répertoire rss-tracker/
+    # (voir ha-addons/.github/workflows/sync-addon.yml).
+    # Requiert un secret ADDONS_REPO_PAT : PAT classique (scope repo) ayant
+    # accès en écriture à jonthekiller/ha-addons.
+    needs: [main, addon]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send repository_dispatch
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.ADDONS_REPO_PAT }}
+          repository: jonthekiller/ha-addons
+          event-type: addon-release
+          client-payload: |
+            {"addon": "rss-tracker", "ref": "${{ github.ref_name }}"}

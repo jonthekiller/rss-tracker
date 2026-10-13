@@ -6,7 +6,7 @@ The add-on ships **prebuilt**: no compilation needed on the device.
 
 1. In Home Assistant: **Settings → Add-ons → ⋮ → Repositories** → add:
    ```
-   https://github.com/jonthekiller/rss-tracker
+   https://github.com/jonthekiller/ha-addons
    ```
 2. **RSS-Tracker** appears in the list — install it.
 3. In **Configuration**, paste your `discord_token` (other options are optional) — they are translated into environment variables at startup.
