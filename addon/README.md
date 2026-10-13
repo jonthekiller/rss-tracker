@@ -31,4 +31,4 @@ L'add-on est distribué **pré-construit** : aucune compilation n'est nécessair
 
 ## Mise à jour d'une release
 
-Le numéro de version de `config.json` doit correspondre au tag git (`v0.3.0` → `0.3.0`) : la CI le vérifie et refuse de publier sinon. Pour publier une nouvelle version de l'add-on, bump `version` dans `config.json` **et** `package.json` en même temps.
+Le numéro de version de `config.json` doit correspondre au tag git (`v1.0.0` → `1.0.0`) : la CI le vérifie et refuse de publier sinon. Pour publier une nouvelle version de l'add-on, bump `version` dans `config.json` **et** `package.json` en même temps.

@@ -194,7 +194,7 @@ npm run build        # tsc → dist/
 ## Publication d'une nouvelle version (mainteneurs)
 
 1. Bump `version` dans `package.json` **et** `addon/config.json` (identiques)
-2. Commit, puis `git tag v0.3.x && git push origin main --tags`
+2. Commit, puis `git tag v1.0.x && git push origin main --tags`
 3. Le workflow [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) construit et publie automatiquement :
    - `jonthekiller/rss-tracker:<version>` + `:latest` (amd64 + arm64)
    - `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>`
