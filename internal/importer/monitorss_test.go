@@ -150,9 +150,14 @@ func indexOf(s, sub string) int {
 func TestFixtureFileIsParseable(t *testing.T) {
 	// The repository fixture (testdata/monitorss-backup.json) is the reference
 	// format captured from a real MonitoRSS v6 backup; it must stay parseable.
+	// It is excluded from the public repository (real Discord IDs), so skip
+	// when absent.
 	data, err := os.ReadFile("testdata/monitorss-backup.json")
+	if os.IsNotExist(err) {
+		t.Skip("fixture excluded from the public repository")
+	}
 	if err != nil {
-		t.Fatalf("fixture missing: %v", err)
+		t.Fatalf("fixture unreadable: %v", err)
 	}
 	if _, err := ParseMonitoRssBackup(data); err != nil {
 		t.Fatalf("fixture no longer parseable: %v", err)
