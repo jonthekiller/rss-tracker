@@ -17,9 +17,10 @@ cd "$(dirname "$0")/.."
 msg="${1:-RSS-Tracker v1.0.0 — initial public release}"
 
 # Paths kept out of the public repository (still present locally).
+# The MonitoRSS backup fixture contains real Discord guild/user/channel IDs.
 PUBLIC_EXCLUDE='
 scripts
-test/fixtures/monitorss-backup.json
+internal/importer/testdata/monitorss-backup.json
 '
 
 tmp_index=$(mktemp)

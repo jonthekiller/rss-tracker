@@ -42,6 +42,7 @@ jobs:
           tags: |
             ${{ env.IMAGE }}:${{ steps.version.outputs.version }}
             ${{ env.IMAGE }}:latest
+          build-args: VERSION=${{ steps.version.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -65,7 +66,7 @@ jobs:
 
       - name: Check addon/config.json version matches the tag
         run: |
-          addon_version=$(node -p "require('./addon/config.json').version")
+          addon_version=$(python3 -c "import json;print(json.load(open('addon/config.json'))['version'])")
           if [ "$addon_version" != "${{ steps.version.outputs.version }}" ]; then
             echo "::error::addon/config.json version ($addon_version) != tag version (${{ steps.version.outputs.version }})"
             exit 1

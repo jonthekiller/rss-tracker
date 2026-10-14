@@ -10,10 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-go@v5
         with:
-          node-version: 24
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm test
+          go-version-file: go.mod
+          cache: true
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test ./... -race -count=1
+      - name: Build (static, both architectures)
+        run: |
+          CGO_ENABLED=0 GOARCH=amd64 go build -o /tmp/bot-amd64 ./cmd/bot
+          CGO_ENABLED=0 GOARCH=arm64 go build -o /tmp/bot-arm64 ./cmd/bot

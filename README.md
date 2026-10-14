@@ -16,7 +16,7 @@ A lightweight self-hosted Discord bot for watching RSS feeds — a minimalist al
 - 🔔 Failure alerts: DM or message when a feed goes down (threshold: `FAILURE_ALERT_THRESHOLD`, default 3 consecutive failures — per-channel override)
 - 🔒 Per-channel permissions: anyone who can write in a channel can configure its feeds (server admins: full access)
 - 💾 Embedded SQLite (no MongoDB/Redis), **MonitoRSS** import and full backup/restore **from Discord**
-- 🐳 Docker image ~250 MB, ~100–150 MB RAM, near-zero CPU outside checks
+- 🐳 Docker image ~16 MB, **~10–20 MB RAM** (measured 7.6 MB idle), near-zero CPU outside checks — single static Go binary, no shell in the image
 
 ## Installation (Docker)
 
@@ -131,7 +131,7 @@ When N new articles arrive in the same check cycle:
 - `/backup export`: versioned JSON **v2 grouped by channel** (feeds + filters + channel settings + **seen article keys** → restore with no duplicates or replayed bursts). By default only exports the current channel; `all_channels:true` (Manage Server) exports everything.
 - `/backup restore`: upsert by stable UUID; **every channel in the backup requires write permission** (otherwise the group is skipped); feeds whose channel no longer exists are imported paused (remap them with `/feed move`). v1 backups (old exports) are converted automatically (global v1 settings are ignored).
 - Daily auto-backup in `data/backups/` (rotation: `BACKUP_RETENTION_DAYS` files kept, default 7 — hour via `BACKUP_HOUR`) — it always exports all channels.
-- Optional CLI: `npm run backup` / `npm run restore -- file.json` / `npm run import -- backup.json --guild <id> --channel <id>`
+- Optional CLI: `bot backup [file]` / `bot restore file.json` / `bot import backup.json --guild <id> --channel <id>` (the container image exposes them via `docker compose exec rss-tracker /app/bot backup`).
 
 ## Per-channel settings
 
@@ -183,37 +183,55 @@ Data (SQLite + backups) lives in `/data` — persistent and included in Home Ass
 
 ## Development
 
+The bot is a single Go binary (module `github.com/jonthekiller/rss-tracker`).
+
 ```bash
-npm install
-npm run dev          # tsx (no build)
-npm test             # vitest
-npm run lint         # biome
-npm run build        # tsc → dist/
+go build ./...        # compile
+go test ./...         # unit + integration tests
+go vet ./...          # static analysis
+go run ./cmd/bot      # run the bot locally (needs DISCORD_TOKEN)
 ```
+
+The Docker image is built with `docker build -t rss-tracker .` — a multi-stage
+build that cross-compiles a static binary (`CGO_ENABLED=0`) and ships it in a
+`distroless/static` runtime (no shell, no package manager).
+
+### From a 1.x (Node.js) install
+
+The database format is unchanged: stop the old container, update the image tag
+(`jonthekiller/rss-tracker:2.x`), start. The Go binary opens the existing
+`data/rss-tracker.db` as-is — feeds, filters, seen articles and channel
+settings carry over with **no duplicated or re-sent articles**. Backups
+exported by either version are mutually restorable.
 
 ## Publishing a new version (maintainers)
 
-1. Bump `version` in `package.json` **and** `addon/config.json` (identical)
-2. Commit, then `git tag v1.0.x && git push origin main --tags`
+1. Bump `version` in `addon/config.json` (the CI checks it matches the tag)
+2. Commit, then `git tag v2.0.x && git push origin main --tags`
 3. The [.github/workflows/docker-publish.yml](.github/workflows/docker-publish.yml) workflow builds and publishes:
-   - `jonthekiller/rss-tracker:<version>` + `:latest` (amd64 + arm64)
+   - `jonthekiller/rss-tracker:<version>` + `:latest` (amd64 + arm64, cross-compiled — no QEMU)
    - `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>`
 4. Required repository secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN` (never hardcode tokens in the code)
 
 ## Architecture
 
 ```
-src/
-  config.ts          Configuration (.env)
-  db/                SQLite (WAL, migrations) + CRUD
-  feed/              Fetcher (ETag/backoff) + new-article detection
+cmd/bot/             Single binary: run | healthcheck | backup | restore | import | addon-run
+internal/
+  config/            Configuration (.env)
+  logging/           slog-based human-readable logs
+  store/             SQLite (WAL, migrations) + CRUD
+  feed/              Fetcher (ETag/backoff) + gofeed normalization + detection/filters
   render/            Text/embed templates + digest
   scheduler/         Check loop + delivery pipeline
   sender/            Per-channel FIFO queue (pacing, 429)
-  bot/               discord.js client + slash commands
+  bot/               discordgo client + slash commands + modals + autocomplete
   backup/            Export/restore/auto-backup
-  import/            MonitoRSS import
-  cli/               Optional CLI wrappers
+  importer/          MonitoRSS import
 ```
+
+Dependencies: `discordgo` (Discord), `modernc.org/sqlite` (pure-Go SQLite, no
+cgo), `mmcdole/gofeed` (RSS/Atom/JSON feeds), `google/uuid`. Everything else is
+the Go standard library.
 
 Accepted trade-off (lite version): the send queue is in-memory — a crash may lose a few pending messages but **never duplicates** (keys are marked seen at enqueue).

@@ -5,11 +5,16 @@ data/
 *.db-shm
 *.db-wal
 
-# Dépendances et artifacts de build
+# Ancienne implémentation TypeScript (remplacée par le portage Go)
+src/
+test/
 node_modules/
 dist/
 coverage/
-*.log
+tsconfig.json
+package.json
+package-lock.json
+biome.json
 
 # Git & CI
 .git/
@@ -19,6 +24,10 @@ coverage/
 addon/
 
 # Divers
-test/
+*.log
+*.md
+icon.png
+logo.png
 scripts/
-README.md
+docker-compose.yml
+dockerhub-overview.md
