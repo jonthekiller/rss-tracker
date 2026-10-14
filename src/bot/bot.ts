@@ -62,6 +62,7 @@ export async function startBot(): Promise<void> {
     sender,
     timezone: config.timezone,
     minIntervalMinutes: config.minIntervalMinutes,
+    failureAlertThreshold: config.failureAlertThreshold,
     onFeedFailed: (feed) => {
       void sendFailureAlert(client, store, feed)
     },

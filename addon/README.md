@@ -14,7 +14,7 @@ A lightweight self-hosted Discord bot for watching RSS feeds — a minimalist al
 - 📚 Burst handling: when a feed publishes X articles at once, a grouped **digest** is sent past a threshold (`auto` mode), or always / never (`digest` / `individual`)
 - 🔎 Include/exclude filters by keyword or regex (title, description)
 - ⏱️ Per-feed check frequency (default 10 min), conditional GETs (ETag/Last-Modified), exponential backoff on failure
-- 🔔 Failure alerts: DM or message when a feed goes down (3 consecutive failures)
+- 🔔 Failure alerts: DM or message when a feed goes down (threshold: `failure_alert_threshold`, default 3 consecutive failures — per-channel override)
 - 🔒 Per-channel permissions: anyone who can write in a channel can configure its feeds (server admins: full access)
 - 💾 Embedded SQLite (no MongoDB/Redis), **MonitoRSS** import and full backup/restore **from Discord**
 - 🐳 Docker image ~250 MB, ~100–150 MB RAM, near-zero CPU outside checks
@@ -86,7 +86,7 @@ Notes:
 | `/import monitorss file [channel]` | Import a MonitoRSS backup into this channel |
 | `/backup export [channel] [all_channels]` | Export config — **current channel by default**; `all_channels:true` (Manage Server) exports everything |
 | `/backup restore file` | Restore a backup (`.json` attachment) — each channel in the backup requires write permission |
-| `/settings alert [user] [channel] [enabled]` | Failure alerts **for this channel** (run the command in the channel to configure) |
+| `/settings alert [user] [channel] [enabled] [threshold]` | Failure alerts **for this channel** (run the command in the channel to configure) |
 | `/status` | Bot health: failing feeds, send queues, scheduler |
 
 `id` supports autocompletion (type the feed name).

@@ -10,6 +10,7 @@ export interface Config {
   logLevel: string
   backupHour: number | null
   backupKeep: number
+  failureAlertThreshold: number
   timezone: string
 }
 
@@ -47,6 +48,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
         ? null
         : Math.min(23, Math.max(0, backupHour)),
     backupKeep: Math.min(365, Math.max(1, intEnv('BACKUP_RETENTION_DAYS', 7))),
+    failureAlertThreshold: Math.min(100, Math.max(1, intEnv('FAILURE_ALERT_THRESHOLD', 3))),
     timezone: env.TIMEZONE ?? 'UTC',
   }
 }

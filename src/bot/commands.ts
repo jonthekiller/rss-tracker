@@ -1083,6 +1083,15 @@ const settingsCommand: CommandHandler = {
           o
             .setName('enabled')
             .setDescription('Turn failure alerts for this channel on/off (default: on)'),
+        )
+        .addIntegerOption((o) =>
+          o
+            .setName('threshold')
+            .setDescription(
+              'Consecutive failures before alerting for this channel (default: global setting)',
+            )
+            .setMinValue(1)
+            .setMaxValue(100),
         ),
     ) as SlashCommandBuilder,
 
@@ -1109,6 +1118,7 @@ const settingsCommand: CommandHandler = {
     const user = interaction.options.getUser('user')
     const channel = interaction.options.getChannel('channel')
     const enabled = interaction.options.getBoolean('enabled')
+    const threshold = interaction.options.getInteger('threshold')
     if (user === null) {
       context.store.setChannelSetting(channelId, 'alert_user_id', null)
     } else if (user) {
@@ -1123,13 +1133,19 @@ const settingsCommand: CommandHandler = {
     if (enabled !== null) {
       context.store.setChannelSetting(channelId, 'alert_enabled', enabled ? null : '0')
     }
+    // Null = follow the global threshold (default).
+    if (threshold !== null) {
+      context.store.setChannelSetting(channelId, 'alert_threshold', String(threshold))
+    }
 
     const current: string[] = []
     const alertsMuted = context.store.getChannelSetting(channelId, 'alert_enabled') === '0'
     const alertUser = context.store.getChannelSetting(channelId, 'alert_user_id')
     const alertChannel = context.store.getChannelSetting(channelId, 'alert_channel_id')
+    const alertThreshold = context.store.getChannelSetting(channelId, 'alert_threshold')
     if (alertUser) current.push(`User: <@${alertUser}>`)
     if (alertChannel) current.push(`Channel: <#${alertChannel}>`)
+    if (alertThreshold !== null) current.push(`Threshold: ${alertThreshold} failures`)
     const status = alertsMuted
       ? '🔕 OFF'
       : current.length > 0

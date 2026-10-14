@@ -227,6 +227,52 @@ describe('Pipeline + Scheduler', () => {
     expect(nextCheck).toBeGreaterThan(NOW + 2 * 60_000)
   })
 
+  it('honors the global failureAlertThreshold option', async () => {
+    const { store, fetcher } = setup()
+    const failures: string[] = []
+    const sender = new SenderQueue({ sendDelayMs: 0, send: async () => {}, delay: async () => {} })
+    const pipeline = new Pipeline({
+      store,
+      sender,
+      timezone: 'UTC',
+      minIntervalMinutes: 2,
+      fetchImpl: fetcher as unknown as typeof fetch,
+      onFeedFailed: (feed) => failures.push(feed.name),
+      failureAlertThreshold: 5,
+    })
+    store.addFeed({ id: 'f1', url: 'https://g.test/rss', guildId: 'g', channelId: 'c1', name: 'Flaky' })
+    fetcher.mockRejectedValue(new Error('HTTP 500'))
+
+    await pipeline.checkFeed('f1', NOW)
+    await pipeline.checkFeed('f1', NOW + 1)
+    await pipeline.checkFeed('f1', NOW + 2)
+    expect(store.getFeed('f1')?.consecutiveFailures).toBe(3)
+    expect(failures).toHaveLength(0) // below the global threshold of 5
+  })
+
+  it('honors the per-channel alert_threshold override', async () => {
+    const { store, fetcher } = setup()
+    const failures: string[] = []
+    const sender = new SenderQueue({ sendDelayMs: 0, send: async () => {}, delay: async () => {} })
+    const pipeline = new Pipeline({
+      store,
+      sender,
+      timezone: 'UTC',
+      minIntervalMinutes: 2,
+      fetchImpl: fetcher as unknown as typeof fetch,
+      onFeedFailed: (feed) => failures.push(feed.name),
+      failureAlertThreshold: 5, // global, ignored because the channel overrides
+    })
+    store.addFeed({ id: 'f1', url: 'https://g.test/rss', guildId: 'g', channelId: 'c1', name: 'Flaky' })
+    store.setChannelSetting('c1', 'alert_threshold', '2')
+    fetcher.mockRejectedValue(new Error('HTTP 500'))
+
+    await pipeline.checkFeed('f1', NOW)
+    expect(failures).toHaveLength(0)
+    await pipeline.checkFeed('f1', NOW + 1)
+    expect(failures).toEqual(['Flaky'])
+  })
+
   it('ticks only due feeds and suspends on demand', async () => {
     const { store, sent, fetcher } = setup()
     const { pipeline, sender } = buildPipeline(store, sent, fetcher)

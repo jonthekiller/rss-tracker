@@ -26,6 +26,7 @@
     "log_level": "info",
     "backup_hour": 3,
     "backup_retention_days": 7,
+    "failure_alert_threshold": 3,
     "timezone": "UTC"
   },
   "schema": {
@@ -35,6 +36,7 @@
     "log_level": "list(trace|debug|info|warn|error)?",
     "backup_hour": "int(0,23)?",
     "backup_retention_days": "int(1,365)?",
+    "failure_alert_threshold": "int(1,100)?",
     "timezone": "str?"
   }
 }

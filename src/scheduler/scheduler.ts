@@ -187,10 +187,13 @@ export class Pipeline {
         this.options.maxBackoffMs ?? this.intervalMs(feed) * 2 ** failures,
       )
       store.setNextCheck(feed.id, now + backoff)
-      if (
-        failures >= (this.options.failureAlertThreshold ?? FAILURE_ALERT_THRESHOLD) &&
-        !(updated?.failedNotified ?? false)
-      ) {
+      // Per-channel threshold (/settings alert threshold) wins over the global one.
+      const perChannelRaw = store.getChannelSetting(feed.channelId, 'alert_threshold')
+      const perChannel = perChannelRaw === null ? NaN : Number.parseInt(perChannelRaw, 10)
+      const threshold = Number.isNaN(perChannel)
+        ? (this.options.failureAlertThreshold ?? FAILURE_ALERT_THRESHOLD)
+        : perChannel
+      if (failures >= threshold && !(updated?.failedNotified ?? false)) {
         this.options.onFeedFailed?.({
           id: feed.id,
           name: feed.name,

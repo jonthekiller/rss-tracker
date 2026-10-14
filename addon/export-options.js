@@ -9,6 +9,7 @@ const OPTION_TO_ENV = {
   log_level: 'LOG_LEVEL',
   backup_hour: 'BACKUP_HOUR',
   backup_retention_days: 'BACKUP_RETENTION_DAYS',
+  failure_alert_threshold: 'FAILURE_ALERT_THRESHOLD',
   timezone: 'TIMEZONE',
 }
 
