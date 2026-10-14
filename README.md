@@ -1,4 +1,4 @@
-# RSS-Tracker
+# <img src="icon.png" width="36" alt="RSS-Tracker icon" /> RSS-Tracker
 
 [![CI](https://github.com/jonthekiller/rss-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/jonthekiller/rss-tracker/actions/workflows/ci.yml)
 [![Docker Hub](https://img.shields.io/docker/v/jonthekiller/rss-tracker?sort=semver&label=docker)](https://hub.docker.com/r/jonthekiller/rss-tracker)
