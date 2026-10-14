@@ -1,6 +1,6 @@
 {
   "name": "rss-tracker",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Lightweight self-hosted Discord RSS bot (MonitoRSS alternative)",
   "type": "module",
   "engines": {
