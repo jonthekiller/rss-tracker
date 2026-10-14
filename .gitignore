@@ -5,7 +5,8 @@ data/
 *.log
 coverage/
 dockerhub-overview.md
-bot
+/bot
+/bot.exe
 *.db
 *.db-shm
 *.db-wal
