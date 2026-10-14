@@ -1,0 +1,33 @@
+# Secrets & données locales — ne doivent jamais entrer dans le contexte de build
+.env
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Ancienne implémentation TypeScript (remplacée par le portage Go)
+src/
+test/
+node_modules/
+dist/
+coverage/
+tsconfig.json
+package.json
+package-lock.json
+biome.json
+
+# Git & CI
+.git/
+.github/
+
+# Add-on Home Assistant (construit séparément, voir addon/)
+addon/
+
+# Divers
+*.log
+*.md
+icon.png
+logo.png
+scripts/
+docker-compose.yml
+dockerhub-overview.md
