@@ -17,7 +17,7 @@ A lightweight self-hosted Discord bot for watching RSS feeds — a minimalist al
 - 🔔 Failure alerts: DM or message when a feed goes down (threshold: `failure_alert_threshold`, default 3 consecutive failures — per-channel override)
 - 🔒 Per-channel permissions: anyone who can write in a channel can configure its feeds (server admins: full access)
 - 💾 Embedded SQLite (no MongoDB/Redis), **MonitoRSS** import and full backup/restore **from Discord**
-- 🐳 Docker image ~250 MB, ~100–150 MB RAM, near-zero CPU outside checks
+- 🐳 Single static Go binary — tiny image, **~10–20 MB RAM** (measured 7.6 MB idle), near-zero CPU outside checks
 
 ## Installation (Home Assistant add-on)
 
@@ -46,13 +46,14 @@ Slash commands are registered globally at bot startup.
 | `send_delay_ms` | `1000` | Delay between two messages to the same channel (250–10000) |
 | `log_level` | `info` | trace / debug / info / warn / error |
 | `backup_hour` | `3` | Daily auto-backup hour (0–23) |
-| `backup_retention_days` | `7` | Number of daily backup files kept in `/data/backups/` |
+| `backup_retention_days` | `7` | Number of daily backup files kept in `/data/backups/` (1–365) |
+| `failure_alert_threshold` | `3` | Consecutive feed failures before an alert (1–100) — per-channel override via `/settings alert threshold:` |
 | `timezone` | `UTC` | Timezone used for `{date}` |
 
 Notes:
 
 - Slash commands are registered globally at bot startup.
-- Logs: the add-on "Log" page, or `docker logs addon_local_rss_tracker`.
+- Logs: the add-on "Log" page.
 - The add-on needs no special network access beyond the Internet (Discord + RSS feeds): no `host_network`, no Home Assistant API.
 - Image pulled from Docker Hub: `jonthekiller/rss-tracker-addon-{amd64,aarch64}:<version>` — built by GitHub Actions on every `v*` tag.
 
@@ -83,7 +84,7 @@ Notes:
 | `/feed refresh id` | Check immediately |
 | `/debug feed id` | **Dry run**: fetch + detailed report (seen/new/blocked articles, template rendering, errors) without changing anything |
 | `/debug system` | Diagnostics: memory, send queues, scheduler, version |
-| `/import monitorss file [channel]` | Import a MonitoRSS backup into this channel |
+| `/import monitorss file [channel]` | Import a MonitoRSS backup into this channel (backup channels require write permission, otherwise the feed is skipped) |
 | `/backup export [channel] [all_channels]` | Export config — **current channel by default**; `all_channels:true` (Manage Server) exports everything |
 | `/backup restore file` | Restore a backup (`.json` attachment) — each channel in the backup requires write permission |
 | `/settings alert [user] [channel] [enabled] [threshold]` | Failure alerts **for this channel** (run the command in the channel to configure) |
@@ -131,8 +132,12 @@ When N new articles arrive in the same check cycle:
 ## Backup / restore
 
 - `/backup export`: versioned JSON **v2 grouped by channel** (feeds + filters + channel settings + **seen article keys** → restore with no duplicates or replayed bursts). By default only exports the current channel; `all_channels:true` (Manage Server) exports everything.
-- `/backup restore`: upsert by stable UUID; **every channel in the backup requires write permission** (otherwise the group is skipped); feeds whose channel no longer exists are imported paused (remap them with `/feed move`). v1 backups (old exports) are converted automatically.
+- `/backup restore`: upsert by stable UUID; **every channel in the backup requires write permission** (otherwise the group is skipped); feeds whose channel no longer exists are imported paused (remap them with `/feed move`). v1 backups (old exports) are converted automatically (global v1 settings are ignored).
 - Daily auto-backup in `/data/backups/` (rotation: `backup_retention_days` files kept, default 7 — hour via `backup_hour`) — it always exports all channels.
+
+## Per-channel settings
+
+`/settings alert` attaches to the channel where the command is run: when one of that channel's feeds goes down (threshold: `failure_alert_threshold`, default 3 consecutive failures — per-channel override with `threshold:`), the bot DMs the configured user and/or posts in the configured channel. Alerts are independent per channel. `enabled:false` mutes alerts for that channel (targets are kept — `enabled:true` re-activates them). The MonitoRSS import automatically repositions `profile.alert` onto the import channel.
 
 ## MonitoRSS import (v6)
 
