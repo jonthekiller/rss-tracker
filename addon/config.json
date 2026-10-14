@@ -1,0 +1,45 @@
+{
+  "name": "RSS-Tracker",
+  "version": "2.0.2",
+  "slug": "rss_tracker",
+  "description": "Lightweight Discord RSS bot (MonitoRSS alternative) — tracks feeds and posts new articles to Discord channels",
+  "url": "https://github.com/jonthekiller/ha-addons",
+  "image": "jonthekiller/rss-tracker-addon-{arch}",
+  "arch": [
+    "aarch64",
+    "amd64"
+  ],
+  "startup": "services",
+  "boot": "auto",
+  "hassio_api": false,
+  "homeassistant_api": false,
+  "host_network": false,
+  "host_pid": false,
+  "devicetree": false,
+  "full_access": false,
+  "usb": false,
+  "uart": false,
+  "gpio": false,
+  "kernel_modules": false,
+  "map": [],
+  "options": {
+    "discord_token": "",
+    "default_interval_minutes": 10,
+    "send_delay_ms": 1000,
+    "log_level": "info",
+    "backup_hour": 3,
+    "backup_retention_days": 7,
+    "failure_alert_threshold": 3,
+    "timezone": "UTC"
+  },
+  "schema": {
+    "discord_token": "str",
+    "default_interval_minutes": "int(2,1440)?",
+    "send_delay_ms": "int(250,10000)?",
+    "log_level": "list(trace|debug|info|warn|error)?",
+    "backup_hour": "int(0,23)?",
+    "backup_retention_days": "int(1,365)?",
+    "failure_alert_threshold": "int(1,100)?",
+    "timezone": "str?"
+  }
+}
