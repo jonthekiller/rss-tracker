@@ -9,6 +9,7 @@ export interface Config {
   sendDelayMs: number
   logLevel: string
   backupHour: number | null
+  backupKeep: number
   timezone: string
 }
 
@@ -45,6 +46,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       backupHour === null || Number.isNaN(backupHour) || !boolEnv('BACKUP_ENABLED', true)
         ? null
         : Math.min(23, Math.max(0, backupHour)),
+    backupKeep: Math.min(365, Math.max(1, intEnv('BACKUP_RETENTION_DAYS', 7))),
     timezone: env.TIMEZONE ?? 'UTC',
   }
 }

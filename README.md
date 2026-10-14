@@ -130,7 +130,7 @@ When N new articles arrive in the same check cycle:
 
 - `/backup export`: versioned JSON **v2 grouped by channel** (feeds + filters + channel settings + **seen article keys** → restore with no duplicates or replayed bursts). By default only exports the current channel; `all_channels:true` (Manage Server) exports everything.
 - `/backup restore`: upsert by stable UUID; **every channel in the backup requires write permission** (otherwise the group is skipped); feeds whose channel no longer exists are imported paused (remap them with `/feed move`). v1 backups (old exports) are converted automatically (global v1 settings are ignored).
-- Daily auto-backup in `data/backups/` (7-day rotation, hour via `BACKUP_HOUR`) — it always exports all channels.
+- Daily auto-backup in `data/backups/` (rotation: `BACKUP_RETENTION_DAYS` files kept, default 7 — hour via `BACKUP_HOUR`) — it always exports all channels.
 - Optional CLI: `npm run backup` / `npm run restore -- file.json` / `npm run import -- backup.json --guild <id> --channel <id>`
 
 ## Per-channel settings
@@ -161,6 +161,7 @@ Each imported feed is "baseline": articles already published at import time are 
 | `SEND_DELAY_MS` | `1000` | Delay between two messages to the same channel |
 | `LOG_LEVEL` | `info` | trace/debug/info/warn/error |
 | `BACKUP_HOUR` | `3` | Auto-backup hour (empty = disabled) |
+| `BACKUP_RETENTION_DAYS` | `7` | Number of daily backup files kept in `data/backups/` |
 | `TIMEZONE` | `UTC` | Timezone for `{date}` |
 | `LOCAL_UID` / `LOCAL_GID` | `1000` | UID/GID of the process in the container (docker compose only — must match the owner of `./data`) |
 

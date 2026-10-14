@@ -109,6 +109,7 @@ export async function startBot(): Promise<void> {
     store,
     directory: `${path.dirname(resolveDbPath(config.dbPath))}/backups`,
     hour: config.backupHour,
+    keep: config.backupKeep,
   })
 
   await client.login(config.discordToken)

@@ -7,10 +7,12 @@ export interface AutoBackupOptions {
   store: FeedStore
   directory: string
   hour: number | null
+  /** Number of backup files to keep (default 7). */
+  keep?: number
   now?: () => number
 }
 
-/** Write a dated backup file to the backup directory, keeping the 7 most recent. */
+/** Write a dated backup file to the backup directory, keeping the most recent ones. */
 export function writeAutoBackup(options: AutoBackupOptions): string | null {
   if (options.hour === null) return null
   const backup = exportBackup(options.store)
@@ -18,7 +20,7 @@ export function writeAutoBackup(options: AutoBackupOptions): string | null {
   const filename = `rss-backup-${isoDate(options.now?.() ?? Date.now())}.json`
   const filePath = path.join(options.directory, filename)
   fs.writeFileSync(filePath, JSON.stringify(backup, null, 2))
-  rotate(options.directory, 7)
+  rotate(options.directory, options.keep ?? 7)
   return filePath
 }
 
@@ -28,6 +30,11 @@ export function writeAutoBackup(options: AutoBackupOptions): string | null {
  */
 export function startAutoBackupLoop(options: AutoBackupOptions): () => void {
   let lastWrittenDate: string | null = null
+  // Apply retention immediately at startup, so lowering the keep count (or
+  // deleting the backup setting) cleans up stale files without waiting a day.
+  if (options.hour !== null && fs.existsSync(options.directory)) {
+    rotate(options.directory, options.keep ?? 7)
+  }
   const timer = setInterval(() => {
     if (options.hour === null) return
     const nowMs = options.now?.() ?? Date.now()

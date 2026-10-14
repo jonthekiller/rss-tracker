@@ -8,6 +8,7 @@ const OPTION_TO_ENV = {
   send_delay_ms: 'SEND_DELAY_MS',
   log_level: 'LOG_LEVEL',
   backup_hour: 'BACKUP_HOUR',
+  backup_retention_days: 'BACKUP_RETENTION_DAYS',
   timezone: 'TIMEZONE',
 }
 

@@ -46,6 +46,7 @@ Slash commands are registered globally at bot startup.
 | `send_delay_ms` | `1000` | Delay between two messages to the same channel (250–10000) |
 | `log_level` | `info` | trace / debug / info / warn / error |
 | `backup_hour` | `3` | Daily auto-backup hour (0–23) |
+| `backup_retention_days` | `7` | Number of daily backup files kept in `/data/backups/` |
 | `timezone` | `UTC` | Timezone used for `{date}` |
 
 Notes:
@@ -131,7 +132,7 @@ When N new articles arrive in the same check cycle:
 
 - `/backup export`: versioned JSON **v2 grouped by channel** (feeds + filters + channel settings + **seen article keys** → restore with no duplicates or replayed bursts). By default only exports the current channel; `all_channels:true` (Manage Server) exports everything.
 - `/backup restore`: upsert by stable UUID; **every channel in the backup requires write permission** (otherwise the group is skipped); feeds whose channel no longer exists are imported paused (remap them with `/feed move`). v1 backups (old exports) are converted automatically.
-- Daily auto-backup in `/data/backups/` (7-day rotation, hour via `backup_hour`) — it always exports all channels.
+- Daily auto-backup in `/data/backups/` (rotation: `backup_retention_days` files kept, default 7 — hour via `backup_hour`) — it always exports all channels.
 
 ## MonitoRSS import (v6)
 

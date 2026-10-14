@@ -25,6 +25,7 @@
     "send_delay_ms": 1000,
     "log_level": "info",
     "backup_hour": 3,
+    "backup_retention_days": 7,
     "timezone": "UTC"
   },
   "schema": {
@@ -33,6 +34,7 @@
     "send_delay_ms": "int(250,10000)?",
     "log_level": "list(trace|debug|info|warn|error)?",
     "backup_hour": "int(0,23)?",
+    "backup_retention_days": "int(1,365)?",
     "timezone": "str?"
   }
 }
