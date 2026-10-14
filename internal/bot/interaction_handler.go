@@ -9,20 +9,31 @@ import (
 	"github.com/jonthekiller/rss-tracker/internal/store"
 )
 
+// findFocusedOption locates the autocomplete-focused string option, which is
+// nested under the subcommand (and possibly subcommand group) levels.
+func findFocusedOption(opts []*discordgo.ApplicationCommandInteractionDataOption) (string, string) {
+	for _, opt := range opts {
+		if opt.Focused && opt.Type == discordgo.ApplicationCommandOptionString {
+			value, _ := opt.Value.(string)
+			return opt.Name, value
+		}
+		if len(opt.Options) > 0 {
+			if name, value := findFocusedOption(opt.Options); name != "" {
+				return name, value
+			}
+		}
+	}
+	return "", ""
+}
+
 // handleAutocomplete responds to feed-id autocomplete requests with the feeds
 // of channels the user can manage.
 func handleAutocomplete(ctx *BotContext, s *discordgo.Session, i *discordgo.Interaction) {
 	data := i.ApplicationCommandData()
-	focused := ""
-	for _, opts := range [][]*discordgo.ApplicationCommandInteractionDataOption{data.Options} {
-		for _, opt := range opts {
-			if opt.Type == discordgo.ApplicationCommandOptionString && opt.Focused {
-				focused = opt.Name
-			}
-		}
-	}
+	focusedName, focusedValue := findFocusedOption(data.Options)
+
 	choices := []*discordgo.ApplicationCommandOptionChoice{}
-	if focused == "id" {
+	if focusedName == "id" {
 		feeds, _ := ctx.Store.GetFeedsForGuild(i.GuildID)
 		member := i.Member
 		// Only suggest feeds of channels the user can manage (write access or admin).
@@ -43,7 +54,7 @@ func handleAutocomplete(ctx *BotContext, s *discordgo.Session, i *discordgo.Inte
 				Value: feedRow.ID,
 			})
 		}
-		query := strings.ToLower(focusedValue(i))
+		query := strings.ToLower(focusedValue)
 		filtered := choices[:0]
 		for _, choice := range choices {
 			name := strings.ToLower(choice.Name)
@@ -62,18 +73,6 @@ func handleAutocomplete(ctx *BotContext, s *discordgo.Session, i *discordgo.Inte
 		Type: discordgo.InteractionApplicationCommandAutocompleteResult,
 		Data: &discordgo.InteractionResponseData{Choices: choices},
 	})
-}
-
-func focusedValue(i *discordgo.Interaction) string {
-	data := i.ApplicationCommandData()
-	for _, opt := range data.Options {
-		if opt.Focused {
-			if v, ok := opt.Value.(string); ok {
-				return strings.ToLower(v)
-			}
-		}
-	}
-	return ""
 }
 
 // handleModalSubmit processes feed-template and feed-embed modals.

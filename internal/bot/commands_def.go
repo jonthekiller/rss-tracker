@@ -17,8 +17,9 @@ func feedIDOption() *discordgo.ApplicationCommandOption {
 
 func cmdFeed() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "feed",
-		Description: "Manage RSS feeds",
+		DMPermission: ptrFalse(),
+		Name:         "feed",
+		Description:  "Manage RSS feeds",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -193,8 +194,9 @@ func cmdFeed() *discordgo.ApplicationCommand {
 
 func cmdImport() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "import",
-		Description: "Import data from an external bot",
+		DMPermission: ptrFalse(),
+		Name:         "import",
+		Description:  "Import data from an external bot",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -211,8 +213,9 @@ func cmdImport() *discordgo.ApplicationCommand {
 
 func cmdBackup() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "backup",
-		Description: "Backup and restore configuration",
+		DMPermission: ptrFalse(),
+		Name:         "backup",
+		Description:  "Backup and restore configuration",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -237,8 +240,9 @@ func cmdBackup() *discordgo.ApplicationCommand {
 
 func cmdSettings() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "settings",
-		Description: "Bot settings",
+		DMPermission: ptrFalse(),
+		Name:         "settings",
+		Description:  "Bot settings",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -261,8 +265,9 @@ func cmdSettings() *discordgo.ApplicationCommand {
 
 func cmdDebug() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "debug",
-		Description: "Diagnostics for troubleshooting",
+		DMPermission: ptrFalse(),
+		Name:         "debug",
+		Description:  "Diagnostics for troubleshooting",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
@@ -281,8 +286,9 @@ func cmdDebug() *discordgo.ApplicationCommand {
 
 func cmdStatus() *discordgo.ApplicationCommand {
 	return &discordgo.ApplicationCommand{
-		Name:        "status",
-		Description: "Bot health status",
+		DMPermission: ptrFalse(),
+		Name:         "status",
+		Description:  "Bot health status",
 	}
 }
 
@@ -294,3 +300,5 @@ func buildCommandPayloads() []*discordgo.ApplicationCommand {
 }
 
 func ptrF64(v float64) *float64 { return &v }
+
+func ptrFalse() *bool { return new(bool) }

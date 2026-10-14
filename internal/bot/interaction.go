@@ -107,14 +107,16 @@ func (c *icc) showModal(customID, title string, input discordgo.TextInput) error
 }
 
 // ---------------------------------------------------------------------------
-// Option accessors (top-level options of the current subcommand)
+// Option accessors (options of the active subcommand)
 // ---------------------------------------------------------------------------
 
 // options returns the option list of the active subcommand, descending
-// through a subcommand group when present.
+// through the subcommand (and subcommand group) levels: Discord nests the
+// actual options under the SubCommand/SubCommandGroup entries of Data.Options.
 func (c *icc) options() []*discordgo.ApplicationCommandInteractionDataOption {
 	opts := c.Data.Options
-	for len(opts) > 0 && opts[0].Type == discordgo.ApplicationCommandOptionSubCommandGroup {
+	for len(opts) > 0 && (opts[0].Type == discordgo.ApplicationCommandOptionSubCommandGroup ||
+		opts[0].Type == discordgo.ApplicationCommandOptionSubCommand) {
 		opts = opts[0].Options
 	}
 	return opts

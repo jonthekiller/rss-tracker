@@ -199,13 +199,14 @@ func handleSettings(ctx *BotContext, c *icc) {
 		return
 	}
 
+	// Omitted user/channel options clear their target (TS parity: getUser()
+	// returns null when the option is not provided, and null means clear).
 	if user := c.optUserID("user"); user != nil {
 		if err := ctx.Store.SetChannelSetting(channelID, "alert_user_id", user); err != nil {
 			_ = c.replyEphemeral("Database error: " + err.Error())
 			return
 		}
-	} else if c.optUserID("user") == nil && hasOption(c, "user") {
-		// Option explicitly emptied (not possible via Discord UI, kept for parity).
+	} else {
 		_ = ctx.Store.SetChannelSetting(channelID, "alert_user_id", nil)
 	}
 	if channel := c.optChannelID("channel"); channel != nil {
@@ -213,7 +214,7 @@ func handleSettings(ctx *BotContext, c *icc) {
 			_ = c.replyEphemeral("Database error: " + err.Error())
 			return
 		}
-	} else if hasOption(c, "channel") {
+	} else {
 		_ = ctx.Store.SetChannelSetting(channelID, "alert_channel_id", nil)
 	}
 	// Null = enabled (default); '0' = explicitly muted.
@@ -261,8 +262,7 @@ func handleSettings(ctx *BotContext, c *icc) {
 	_ = c.replyEphemeral(fmt.Sprintf("⚙️ Failure alerts for <#%s>: %s", channelID, status))
 }
 
-// hasOption reports whether the option was passed (present with a null-ish
-// value in the TS version meant "clear"; Discord omits unset options).
+// hasOption reports whether the option was passed at all.
 func hasOption(c *icc, name string) bool {
 	return findOption(c.options(), name) != nil
 }
