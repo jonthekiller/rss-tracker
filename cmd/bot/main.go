@@ -40,6 +40,12 @@ const healthcheckMaxAgeMs = 10 * 60_000
 func main() {
 	env := config.EnvironMap()
 	args := os.Args[1:]
+	// Drop a duplicated binary path from the argument list: derived images
+	// that set a CMD while inheriting an ENTRYPOINT run
+	// "/app/bot /app/bot addon-run" (seen with the HA add-on image).
+	for len(args) > 0 && looksLikeSelfPath(args[0]) {
+		args = args[1:]
+	}
 	command := "run"
 	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
 		command = args[0]
@@ -343,6 +349,18 @@ func fallbackStr(value, def string) string {
 		return def
 	}
 	return value
+}
+
+// looksLikeSelfPath reports whether arg is a path to this binary itself
+// (absolute/relative path ending in "bot") rather than a subcommand.
+func looksLikeSelfPath(arg string) bool {
+	if arg == "bot" || arg == os.Args[0] {
+		return true
+	}
+	if strings.HasSuffix(arg, "/bot") || strings.HasSuffix(arg, "/bot.exe") {
+		return true
+	}
+	return false
 }
 
 func nil2ctx() context.Context { return context.Background() }

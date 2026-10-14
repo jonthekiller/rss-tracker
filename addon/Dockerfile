@@ -18,4 +18,7 @@ USER root
 # database as the bot process. addon-run uses the same value.
 ENV DB_PATH=/data/rss-tracker.db
 
-CMD [ "/app/bot", "addon-run" ]
+# The base image defines ENTRYPOINT ["/app/bot"], so the CMD must contain
+# ONLY the arguments — writing CMD ["/app/bot", "addon-run"] here would make
+# Docker run "/app/bot /app/bot addon-run".
+CMD [ "addon-run" ]
