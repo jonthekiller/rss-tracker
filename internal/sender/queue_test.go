@@ -3,6 +3,7 @@ package sender
 import (
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -10,13 +11,17 @@ import (
 )
 
 func TestSendsInOrderPerChannel(t *testing.T) {
+	var mu sync.Mutex
 	var sent []string
 	done := make(chan struct{})
 	q := New(Options{
 		SendDelayMs: 1,
 		Send: func(channelID string, message OutboundMessage) error {
+			mu.Lock()
 			sent = append(sent, channelID+":"+message.Content)
-			if len(sent) == 4 {
+			finished := len(sent) == 4
+			mu.Unlock()
+			if finished {
 				close(done)
 			}
 			return nil
@@ -35,8 +40,11 @@ func TestSendsInOrderPerChannel(t *testing.T) {
 		t.Fatal("timeout")
 	}
 	// Per-channel FIFO order is guaranteed; cross-channel interleaving is not.
+	mu.Lock()
+	entries := append([]string{}, sent...)
+	mu.Unlock()
 	var c1, c2 []string
-	for _, entry := range sent {
+	for _, entry := range entries {
 		if strings.HasPrefix(entry, "c1:") {
 			c1 = append(c1, entry)
 		} else {
