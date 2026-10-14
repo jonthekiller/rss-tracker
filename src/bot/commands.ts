@@ -1078,6 +1078,11 @@ const settingsCommand: CommandHandler = {
         )
         .addChannelOption((o) =>
           o.setName('channel').setDescription('Channel to post failures in (empty to clear)'),
+        )
+        .addBooleanOption((o) =>
+          o
+            .setName('enabled')
+            .setDescription('Turn failure alerts for this channel on/off (default: on)'),
         ),
     ) as SlashCommandBuilder,
 
@@ -1103,6 +1108,7 @@ const settingsCommand: CommandHandler = {
 
     const user = interaction.options.getUser('user')
     const channel = interaction.options.getChannel('channel')
+    const enabled = interaction.options.getBoolean('enabled')
     if (user === null) {
       context.store.setChannelSetting(channelId, 'alert_user_id', null)
     } else if (user) {
@@ -1113,16 +1119,23 @@ const settingsCommand: CommandHandler = {
     } else if (channel) {
       context.store.setChannelSetting(channelId, 'alert_channel_id', channel.id)
     }
+    // Null = enabled (default); '0' = explicitly muted.
+    if (enabled !== null) {
+      context.store.setChannelSetting(channelId, 'alert_enabled', enabled ? null : '0')
+    }
 
     const current: string[] = []
+    const alertsMuted = context.store.getChannelSetting(channelId, 'alert_enabled') === '0'
     const alertUser = context.store.getChannelSetting(channelId, 'alert_user_id')
     const alertChannel = context.store.getChannelSetting(channelId, 'alert_channel_id')
     if (alertUser) current.push(`User: <@${alertUser}>`)
     if (alertChannel) current.push(`Channel: <#${alertChannel}>`)
-    await reply(
-      interaction,
-      `⚙️ Failure alerts for <#${channelId}>: ${current.length > 0 ? current.join(' · ') : 'disabled'}`,
-    )
+    const status = alertsMuted
+      ? '🔕 OFF'
+      : current.length > 0
+        ? current.join(' · ')
+        : 'disabled (no target)'
+    await reply(interaction, `⚙️ Failure alerts for <#${channelId}>: ${status}`)
   },
 }
 

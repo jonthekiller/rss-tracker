@@ -137,6 +137,8 @@ async function sendFailureAlert(
 ): Promise<void> {
   const message = `⚠️ **Feed failed** — ${feed.name} (<${feed.url}>)\n\`\`\`\n${feed.lastError ?? 'unknown error'}\n\`\`\``
   try {
+    // Per-channel kill switch (/settings alert enabled:false).
+    if (store.getChannelSetting(feed.channelId, 'alert_enabled') === '0') return
     // Alert targets are configured per channel (/settings alert in that channel).
     const userId = store.getChannelSetting(feed.channelId, 'alert_user_id')
     if (userId) {

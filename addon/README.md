@@ -86,7 +86,7 @@ Notes:
 | `/import monitorss file [channel]` | Import a MonitoRSS backup into this channel |
 | `/backup export [channel] [all_channels]` | Export config — **current channel by default**; `all_channels:true` (Manage Server) exports everything |
 | `/backup restore file` | Restore a backup (`.json` attachment) — each channel in the backup requires write permission |
-| `/settings alert [user] [channel]` | Failure alerts **for this channel** (run the command in the channel to configure) |
+| `/settings alert [user] [channel] [enabled]` | Failure alerts **for this channel** (run the command in the channel to configure) |
 | `/status` | Bot health: failing feeds, send queues, scheduler |
 
 `id` supports autocompletion (type the feed name).

@@ -84,7 +84,7 @@ docker compose up -d --build
 | `/import monitorss file [channel]` | Import a MonitoRSS backup into this channel (backup channels require write permission, otherwise the feed is skipped) |
 | `/backup export [channel] [all_channels]` | Export config — **current channel by default**; `all_channels:true` (Manage Server) exports everything |
 | `/backup restore file` | Restore a backup (`.json` attachment) — each channel in the backup requires write permission |
-| `/settings alert [user] [channel]` | Failure alerts **for this channel** (run the command in the channel to configure) |
+| `/settings alert [user] [channel] [enabled]` | Failure alerts **for this channel** (run the command in the channel to configure) |
 | `/status` | Bot health: failing feeds, send queues, scheduler |
 
 `id` supports autocompletion (type the feed name).
@@ -135,7 +135,7 @@ When N new articles arrive in the same check cycle:
 
 ## Per-channel settings
 
-`/settings alert` attaches to the channel where the command is run: when one of that channel's feeds goes down (3 consecutive failures), the bot DMs the configured user and/or posts in the configured channel. Alerts are independent per channel. The MonitoRSS import automatically repositions `profile.alert` onto the import channel.
+`/settings alert` attaches to the channel where the command is run: when one of that channel's feeds goes down (3 consecutive failures), the bot DMs the configured user and/or posts in the configured channel. Alerts are independent per channel. `enabled:false` mutes alerts for that channel (targets are kept — `enabled:true` re-activates them). The MonitoRSS import automatically repositions `profile.alert` onto the import channel.
 
 ## MonitoRSS import (v6)
 
