@@ -1,0 +1,27 @@
+name: Sync Docker Hub overview
+
+# Keeps the Docker Hub repository overview in sync with README.md.
+# DOCKERHUB_TOKEN must be a PAT with "Read, Write, & Delete" permission
+# (a "Read & Write" PAT cannot edit repository descriptions).
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  dockerhub-description:
+    runs-on: ubuntu-latest
+    # Cosmetic sync — never fail the build over it (e.g. while the PAT
+    # permission level is still "Read & Write").
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: jonthekiller/rss-tracker
+          readme-file: ./README.md
+          enable-url-completion: true
