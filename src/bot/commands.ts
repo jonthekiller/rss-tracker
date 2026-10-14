@@ -337,9 +337,6 @@ const feedCommand: CommandHandler = {
         )
         .addIntegerOption((o) =>
           o.setName('threshold').setDescription('Digest threshold (auto mode)').setMinValue(2),
-        )
-        .addIntegerOption((o) =>
-          o.setName('max_items').setDescription('Max items listed in a digest').setMinValue(1),
         ),
     )
     .addSubcommandGroup((group) =>
@@ -632,7 +629,7 @@ async function feedShow(
     `Channel: <#${feed.channelId}>`,
     `Enabled: ${feed.enabled}${feed.pauseReason ? ` (${feed.pauseReason})` : ''}`,
     `Frequency: every ${feed.intervalMinutes} min`,
-    `Batch: ${feed.batchMode} (threshold ${feed.batchThreshold}, max ${feed.batchMaxItems} items)`,
+    `Batch: ${feed.batchMode} (threshold ${feed.batchThreshold}; digests list every article, split across messages if needed)`,
     `Max article age: ${feed.maxAgeDays === 0 ? 'disabled' : `${feed.maxAgeDays} days`}`,
     `Template:`,
     '```',
@@ -757,11 +754,9 @@ async function feedBatch(
   if (!feed) return
   const mode = interaction.options.getString('mode', true) as BatchMode
   const threshold = interaction.options.getInteger('threshold')
-  const maxItems = interaction.options.getInteger('max_items')
   context.store.updateFeed(feed.id, {
     batchMode: mode,
     ...(threshold !== null ? { batchThreshold: threshold } : {}),
-    ...(maxItems !== null ? { batchMaxItems: maxItems } : {}),
   })
   await reply(interaction, `📚 Batch mode of **${feed.name}** set to \`${mode}\`.`)
 }

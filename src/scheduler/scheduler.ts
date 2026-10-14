@@ -341,8 +341,6 @@ export class Pipeline {
         fresh.map((a) => ({ title: a.title, link: a.link })),
         {
           feedName: feed.name,
-          totalNew: fresh.length,
-          maxItems: feed.batchMaxItems,
           timezone: this.options.timezone,
         },
       )

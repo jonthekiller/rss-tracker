@@ -76,7 +76,7 @@ Notes:
 | `/feed template id` | Edit the message template (modal) |
 | `/feed embed id` | Edit the JSON embed template (modal, empty = none) |
 | `/feed frequency id minutes` | Check frequency (min. 2 min) |
-| `/feed batch id mode [threshold] [max_items]` | Burst mode: `auto` / `digest` / `individual` |
+| `/feed batch id mode [threshold]` | Burst mode: `auto` / `digest` / `individual` |
 | `/feed filter add id kind field text [regex]` | Add a filter |
 | `/feed filter remove id filter_id` | Remove a filter |
 | `/feed test id [n] [mode]` | **Simulate a send**: `preview` (ephemeral, default) or `send` (real message in the current channel, state unchanged) |
@@ -125,7 +125,7 @@ Placeholders: `{title}`, `{link}`, `{description}` (HTML stripped), `{summary}` 
 When N new articles arrive in the same check cycle:
 
 - `individual`: one message per article, in publication order, spaced by the send queue
-- `digest`: always a numbered recap (beyond `max_items`: "…and X more")
+- `digest`: always a numbered recap listing every article (split across several messages if it exceeds the 2000-char Discord limit)
 - `auto` (default): digest if N ≥ `threshold` (default 5), otherwise individual
 
 ## Backup / restore

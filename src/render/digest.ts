@@ -8,9 +8,6 @@ export interface DigestItem {
 
 export interface DigestOptions {
   feedName: string
-  /** Number of new articles in the burst (may exceed items.length). */
-  totalNew: number
-  maxItems: number
   timezone: string
 }
 
@@ -20,24 +17,21 @@ export interface DigestMessage {
 }
 
 /**
- * Build a digest message for a burst of articles. The list is capped at
- * maxItems with a "and X more" suffix; long lists are split into multiple
- * messages of at most 2000 chars each.
+ * Build a digest message for a burst of articles. Every item is listed; when
+ * the recap does not fit in a single message it is split into as many
+ * messages as needed (max 2000 chars each), header only on the first one.
  */
 export function buildDigestMessages(items: DigestItem[], options: DigestOptions): DigestMessage[] {
-  const shown = items.slice(0, options.maxItems)
-  const hidden = options.totalNew - shown.length
+  if (items.length === 0) return []
 
-  const lines: string[] = shown.map((item, index) => {
+  const lines: string[] = items.map((item, index) => {
     const number = `${index + 1}.`
     const title = item.title.replace(/\n+/g, ' ').trim() || 'untitled'
     return item.link ? `${number} [${title}](<${item.link}>)` : `${number} ${title}`
   })
-  if (hidden > 0) {
-    lines.push(`…and ${hidden} more.`)
-  }
 
-  const header = `📰 **${options.feedName}** — ${options.totalNew} new article${options.totalNew > 1 ? 's' : ''}:`
+  const total = items.length
+  const header = `📰 **${options.feedName}** — ${total} new article${total > 1 ? 's' : ''}:`
   const fullBody = lines.join('\n')
 
   if (header.length + 1 + fullBody.length <= LIMITS.content) {
@@ -48,12 +42,11 @@ export function buildDigestMessages(items: DigestItem[], options: DigestOptions)
   const messages: DigestMessage[] = []
   let currentLines: string[] = []
   let currentLength = 0
-  const maxBody = (first: boolean) => LIMITS.content - header.length - 1 - (first ? 0 : 0)
 
   for (const line of lines) {
     const lineLength = line.length + 1
     // The first message carries the header, so its body budget is smaller.
-    const budget = messages.length === 0 ? maxBody(true) : LIMITS.content
+    const budget = messages.length === 0 ? LIMITS.content - header.length - 1 : LIMITS.content
     if (currentLength + lineLength > budget && currentLines.length > 0) {
       const isFirst = messages.length === 0
       messages.push({

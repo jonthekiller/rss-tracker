@@ -109,28 +109,23 @@ describe('buildDigestMessages', () => {
     link: `https://x/${i}`,
   }))
 
-  it('caps items with an "and X more" suffix', () => {
+  it('lists every article in a single message when it fits', () => {
     const [message] = buildDigestMessages(items, {
       feedName: 'F',
-      totalNew: 8,
-      maxItems: 3,
       timezone: 'UTC',
     })
     expect(message.content).toContain('8 new articles')
     expect(message.content).toContain('1. [Article 1](<https://x/0>)')
-    expect(message.content).toContain('…and 5 more.')
-    expect(message.content).not.toContain('Article 4')
+    expect(message.content).toContain('8. [Article 8](<https://x/7>)')
   })
 
-  it('splits long digests under 2000 chars', () => {
+  it('splits long digests under 2000 chars, listing every article', () => {
     const many = Array.from({ length: 200 }, (_, i) => ({
       title: `Article number ${i} with a fairly long title to fill space quickly`,
       link: `https://example.com/articles/${i}`,
     }))
     const messages = buildDigestMessages(many, {
       feedName: 'F',
-      totalNew: 200,
-      maxItems: 200,
       timezone: 'UTC',
     })
     expect(messages.length).toBeGreaterThan(1)
@@ -138,14 +133,18 @@ describe('buildDigestMessages', () => {
       expect(message.content.length).toBeLessThanOrEqual(2000)
     }
     expect(messages[0].content).toContain('200 new articles')
+    expect(messages[0].content).not.toContain('…and')
     expect(messages[1].content).not.toContain('new articles')
+    // Every article appears exactly once across the messages.
+    const all = messages.map((m) => m.content).join('\n')
+    for (let i = 0; i < 200; i += 1) {
+      expect(all).toContain(`Article number ${i} `)
+    }
   })
 
   it('handles articles without links', () => {
     const [message] = buildDigestMessages([{ title: 'No link', link: null }], {
       feedName: 'F',
-      totalNew: 1,
-      maxItems: 5,
       timezone: 'UTC',
     })
     expect(message.content).toContain('1. No link')
