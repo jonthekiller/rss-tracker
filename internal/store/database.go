@@ -94,6 +94,17 @@ var MIGRATIONS = []migration{
       );
     `,
 	},
+	{
+		// Non-RSS sources: JSON APIs and HTML pages. rss keeps the legacy
+		// behavior; the TS binary ignores these columns (explicit SELECTs).
+		version: 3,
+		name:    "non-rss-sources",
+		up: `
+      ALTER TABLE feeds ADD COLUMN source_type TEXT NOT NULL DEFAULT 'rss'
+        CHECK (source_type IN ('rss','json','html','auto'));
+      ALTER TABLE feeds ADD COLUMN extract_config TEXT;
+    `,
+	},
 }
 
 // OpenOptions configures Open.

@@ -14,6 +14,7 @@ import (
 	"github.com/jonthekiller/rss-tracker/internal/backup"
 	"github.com/jonthekiller/rss-tracker/internal/feed"
 	"github.com/jonthekiller/rss-tracker/internal/render"
+	"github.com/jonthekiller/rss-tracker/internal/scheduler"
 	"github.com/jonthekiller/rss-tracker/internal/store"
 )
 
@@ -55,6 +56,9 @@ func formatFeedLine(feedRow *store.Feed) string {
 		status = "⏸️"
 	} else if feedRow.ConsecutiveFailures > 0 {
 		status = "⚠️"
+	}
+	if feedRow.SourceType != "" && feedRow.SourceType != store.SourceTypeRSS {
+		status += " 🌐"
 	}
 	id := feedRow.ID
 	if len(id) > 8 {
@@ -163,6 +167,8 @@ func handleFeed(ctx *BotContext, c *icc) {
 		feedTemplateModal(ctx, c)
 	case "embed":
 		feedEmbedModal(ctx, c)
+	case "source":
+		feedSourceModal(ctx, c)
 	case "frequency":
 		feedFrequency(ctx, c)
 	case "batch":
@@ -214,12 +220,36 @@ func feedAdd(ctx *BotContext, c *icc) {
 
 	feedName := name
 	warning := ""
-	result, fetchErr := feed.FetchFeed(context.Background(), rawURL, feed.FetchOptions{})
+	sourceType := deref(c.optString("type"))
+	if sourceType == "" {
+		sourceType = store.SourceTypeAuto
+	}
+	// rss keeps the legacy path; anything else goes through the watch
+	// extractor (auto sniffs JSON vs HTML per fetch).
+	var result *feed.FetchFeedResult
+	var fetchErr error
+	if sourceType == store.SourceTypeRSS {
+		result, fetchErr = feed.FetchFeed(context.Background(), rawURL, feed.FetchOptions{})
+	} else {
+		result, fetchErr = feed.FetchWatch(context.Background(), rawURL, sourceType, feed.ExtractConfig{}, feed.FetchOptions{})
+	}
 	if fetchErr != nil {
-		warning = "⚠️ Could not fetch the feed right now (" + fetchErr.Error() + "); it will retry automatically."
-	} else if result.Status == feed.StatusOK {
-		if name == "Unknown" && result.Meta.Title != nil {
-			feedName = *result.Meta.Title
+		warning = "⚠️ Could not fetch the source right now (" + fetchErr.Error() + "); it will retry automatically."
+	} else {
+		switch sourceType {
+		case store.SourceTypeRSS:
+			if name == "Unknown" && result.Meta.Title != nil {
+				feedName = *result.Meta.Title
+			}
+		case store.SourceTypeAuto:
+			// Persist the sniffed type so /feed show reflects reality; fall
+			// back to auto when the probe could not run.
+			if result.DetectedType == feed.SourceJSON || result.DetectedType == feed.SourceHTML {
+				sourceType = result.DetectedType
+			}
+			if name == "Unknown" {
+				feedName = parsed.Host
+			}
 		}
 	}
 
@@ -228,6 +258,7 @@ func feedAdd(ctx *BotContext, c *icc) {
 		GuildID: c.guildID(), ChannelID: channelID,
 		TemplateText:    render.DefaultTemplate,
 		IntervalMinutes: ctx.Config.DefaultIntervalMinutes, HasInterval: true,
+		SourceType: sourceType,
 	})
 	if err != nil {
 		_ = c.editReply("Database error: " + err.Error())
@@ -246,6 +277,16 @@ func feedAdd(ctx *BotContext, c *icc) {
 	response := fmt.Sprintf("✅ Feed **%s** added to <#%s> (`%s`).\n%s\n%s",
 		feedName, channelID, shortID(feedRow.ID),
 		articleCountSuffix(articleCount), warning)
+
+	// Non-RSS source niceties.
+	if fetchErr == nil && articleCount == 0 && sourceType != store.SourceTypeRSS {
+		response += "\nℹ️ No items extracted — check the extraction config with `/feed source` and test with `/debug feed`."
+	}
+	if fetchErr == nil && sourceType != store.SourceTypeRSS {
+		if link, linkErr := feed.FetchFeedLink(context.Background(), rawURL, feed.FetchOptions{}); linkErr == nil && link != nil && *link != rawURL {
+			response += fmt.Sprintf("\n💡 This page declares a RSS/Atom feed: <%s> — you may prefer adding that URL directly.", *link)
+		}
+	}
 	_ = c.editReply(response)
 }
 
@@ -324,6 +365,7 @@ func feedShow(ctx *BotContext, c *icc) {
 		fmt.Sprintf("Channel: <#%s>", feedRow.ChannelID),
 		fmt.Sprintf("Enabled: %t%s", feedRow.Enabled, pauseSuffix(feedRow.PauseReason)),
 		fmt.Sprintf("Frequency: every %d min", feedRow.IntervalMinutes),
+		sourceLine(feedRow),
 		fmt.Sprintf("Batch: %s (threshold %d; digests list every article, split across messages if needed)", feedRow.BatchMode, feedRow.BatchThreshold),
 		fmt.Sprintf("Max article age: %s", maxAgeLabel(feedRow.MaxAgeDays)),
 		"Template:",
@@ -482,6 +524,41 @@ func feedEmbedModal(ctx *BotContext, c *icc) {
 	})
 }
 
+// sourceLine describes the source type and extraction config of a feed.
+func sourceLine(feedRow *store.Feed) string {
+	switch feedRow.SourceType {
+	case store.SourceTypeJSON:
+		return "Source: JSON API"
+	case store.SourceTypeHTML:
+		if feedRow.ExtractConfig != nil && strings.Contains(*feedRow.ExtractConfig, "itemSelector") {
+			return "Source: HTML page (item extraction)"
+		}
+		return "Source: HTML page (whole-page change detection)"
+	case store.SourceTypeAuto:
+		return "Source: auto-detect (JSON API or HTML page)"
+	default:
+		return "Source: RSS/Atom"
+	}
+}
+
+func feedSourceModal(ctx *BotContext, c *icc) {
+	feedRow := getFeedOrReply(ctx, c)
+	if feedRow == nil {
+		return
+	}
+	value := ""
+	if feedRow.ExtractConfig != nil {
+		value = *feedRow.ExtractConfig
+	}
+	title := fmt.Sprintf("Extraction — %s", truncateRunes(feedRow.Name, 40))
+	_ = c.showModal("feed-source:"+feedRow.ID, title, discordgo.TextInput{
+		CustomID: "config",
+		Label:    "Extraction config JSON (empty = defaults)",
+		Style:    discordgo.TextInputParagraph,
+		Value:    value,
+	})
+}
+
 func feedFrequency(ctx *BotContext, c *icc) {
 	feedRow := getFeedOrReply(ctx, c)
 	if feedRow == nil {
@@ -592,9 +669,9 @@ func feedTest(ctx *BotContext, c *icc) {
 		n = 3
 	}
 
-	result, fetchErr := feed.FetchFeed(context.Background(), feedRow.URL, feed.FetchOptions{})
+	result, fetchErr := scheduler.DefaultFetch(context.Background(), feedRow, 0)
 	if fetchErr != nil {
-		_ = c.editReply("Failed to fetch feed: " + fetchErr.Error())
+		_ = c.editReply("Failed to fetch source: " + fetchErr.Error())
 		return
 	}
 	if result.Status == feed.StatusNotModified {

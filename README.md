@@ -9,6 +9,7 @@ A lightweight self-hosted Discord bot for watching RSS feeds — a minimalist al
 **Features:**
 
 - 🤖 One bot for X channels/servers — each feed has its own configuration
+- 🌐 **Non-RSS sources**: JSON APIs (zero-config for most) and HTML pages — an alternative to ChangeDetection.io
 - 📰 Customizable templates (`{title}`, `{link}`, `{description}`, `{summary}`, `{author}`, `{date}`, `{image}`, `{feed.name}`) + optional JSON embeds
 - 📚 Burst handling: when a feed publishes X articles at once, a grouped **digest** is sent past a threshold (`auto` mode), or always / never (`digest` / `individual`)
 - 🔎 Include/exclude filters by keyword or regex (title, description)
@@ -65,12 +66,13 @@ docker compose up -d --build
 
 | Command | Description |
 |---|---|
-| `/feed add url [channel] [name]` | Add a feed (existing articles are marked as seen, nothing is sent) |
-| `/feed list [channel]` | List feeds |
+| `/feed add url [channel] [name] [type]` | Add a source (existing articles are marked as seen, nothing is sent). `type`: `auto` (default) / `rss` / `json` / `html` |
+| `/feed list [channel]` | List feeds (🌐 = non-RSS source) |
 | `/feed show id` | Full feed configuration (including filter ids) |
 | `/feed remove id` | Remove a feed |
 | `/feed pause id` / `/feed resume id` | Pause / resume |
 | `/feed move id channel` | Move to another channel |
+| `/feed source id` | Edit the extraction config of a JSON/HTML source (modal) |
 | `/feed template id` | Edit the message template (modal) |
 | `/feed embed id` | Edit the JSON embed template (modal, empty = none) |
 | `/feed frequency id minutes` | Check frequency (min. 2 min) |
@@ -117,6 +119,58 @@ Placeholders: `{title}`, `{link}`, `{description}` (HTML stripped), `{summary}` 
 ```
 
 `timestamp`: `"article"` (the article's date) or `"now"`.
+
+## Non-RSS sources (JSON APIs & HTML pages)
+
+Sites without a feed can be watched natively — no ChangeDetection.io needed. `/feed add url type:auto` (default) sniffs the response: a JSON array of objects becomes one article per object, an HTML page becomes a **whole-page change watch**. Extracted items flow through the exact same pipeline as RSS (templates, filters, digests, seen-state, failure alerts).
+
+### JSON APIs — example: ENISA critical vulnerabilities
+
+Zero config works for most APIs (fields auto-mapped from common names: `id`/`guid`, `title`/`name`, `url`/`link`, `description`/`summary`, `datePublished`/`published`/`date`):
+
+```bash
+/feed add url:https://euvdservices.enisa.europa.eu/api/criticalvulnerabilities name:ENISA type:auto
+```
+
+Each vulnerability then posts with its default template, e.g. `**EUVD-2026-102920**` + link. Dates in common formats (ISO 8601, RFC 1123, `Oct 10, 2026, 10:23:20 AM`, …) are parsed automatically; items without a guid are keyed by a stable hash of their content.
+
+For anything custom, `/feed source id` opens a modal to edit the extraction config:
+
+```json
+{
+  "itemPath": "data.items",
+  "guidField": "id",
+  "titleField": "{id} — CVSS {baseScore}",
+  "linkField": "url",
+  "descriptionField": "description",
+  "publishedField": "datePublished",
+  "dateLayout": "Jan 2, 2006, 3:04:05 PM"
+}
+```
+
+- `itemPath`: dot path to the array (`$` or empty = document root; a single obvious array in an object is found automatically).
+- Each `*Field` is either a dot path into the item (`vendor.name`) or a pattern with `{path}` placeholders (numbers and arrays are stringified).
+- `dateLayout` (optional Go layout) forces a non-standard date format.
+
+### HTML pages
+
+Two modes, chosen by the extraction config (`/feed source id`):
+
+- **Whole-page diff** (default, no config): the page text is normalized (scripts/styles stripped) and hashed — each time the content changes, one "Page updated" message is sent with a 300-char extract. Ideal for status/changelog pages.
+- **Item extraction** — set `itemSelector` plus optional `titleSelector`, `linkSelector` (`a@href` reads the href), `descriptionSelector`, `dateSelector` (`time@datetime` reads the attribute):
+
+```json
+{
+  "itemSelector": "li.vuln",
+  "linkSelector": "a@href",
+  "descriptionSelector": "p.desc",
+  "dateSelector": "time@datetime"
+}
+```
+
+`/feed add` on a page that declares a `<link rel="alternate" type="application/rss+xml">` will suggest that feed URL in the reply.
+
+Note: pages with volatile content (rotating banners, client-side timestamps) are best watched with an `itemSelector` scoping the changing list, to avoid false "page updated" notifications.
 
 ## Bursts (batch)
 
@@ -221,7 +275,7 @@ internal/
   config/            Configuration (.env)
   logging/           slog-based human-readable logs
   store/             SQLite (WAL, migrations) + CRUD
-  feed/              Fetcher (ETag/backoff) + gofeed normalization + detection/filters
+  feed/              Fetcher (ETag/backoff) + gofeed normalization + JSON/HTML watch adapters + detection/filters
   render/            Text/embed templates + digest
   scheduler/         Check loop + delivery pipeline
   sender/            Per-channel FIFO queue (pacing, 429)
@@ -231,7 +285,7 @@ internal/
 ```
 
 Dependencies: `discordgo` (Discord), `modernc.org/sqlite` (pure-Go SQLite, no
-cgo), `mmcdole/gofeed` (RSS/Atom/JSON feeds), `google/uuid`. Everything else is
-the Go standard library.
+cgo), `mmcdole/gofeed` (RSS/Atom/JSON feeds), `PuerkitoBio/goquery` (HTML
+extraction), `google/uuid`. Everything else is the Go standard library.
 
 Accepted trade-off (lite version): the send queue is in-memory — a crash may lose a few pending messages but **never duplicates** (keys are marked seen at enqueue).

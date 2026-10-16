@@ -18,7 +18,7 @@ func openTestStore(t *testing.T) (*FeedStore, func()) {
 func TestMigrationsApplied(t *testing.T) {
 	st, closeDB := openTestStore(t)
 	defer closeDB()
-	// The schema_migrations table must record both versions.
+	// The schema_migrations table must record every version.
 	rows, err := st.db.Query(`SELECT version FROM schema_migrations ORDER BY version`)
 	if err != nil {
 		t.Fatal(err)
@@ -32,7 +32,7 @@ func TestMigrationsApplied(t *testing.T) {
 		}
 		versions = append(versions, v)
 	}
-	if len(versions) != 2 || versions[0] != 1 || versions[1] != 2 {
+	if len(versions) != 3 || versions[0] != 1 || versions[1] != 2 || versions[2] != 3 {
 		t.Errorf("versions = %v", versions)
 	}
 }

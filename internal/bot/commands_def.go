@@ -24,11 +24,22 @@ func cmdFeed() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "add",
-				Description: "Add a feed to a channel",
+				Description: "Add a feed to a channel (RSS, JSON API or HTML page)",
 				Options: []*discordgo.ApplicationCommandOption{
-					{Type: discordgo.ApplicationCommandOptionString, Name: "url", Description: "Feed URL", Required: true},
+					{Type: discordgo.ApplicationCommandOptionString, Name: "url", Description: "Feed / API / page URL", Required: true},
 					{Type: discordgo.ApplicationCommandOptionChannel, Name: "channel", Description: "Target channel (default: current channel)"},
 					{Type: discordgo.ApplicationCommandOptionString, Name: "name", Description: "Feed display name"},
+					{
+						Type:        discordgo.ApplicationCommandOptionString,
+						Name:        "type",
+						Description: "auto: detect JSON API or HTML page (default); rss: classic feed",
+						Choices: []*discordgo.ApplicationCommandOptionChoice{
+							{Name: "auto (detect)", Value: "auto"},
+							{Name: "rss", Value: "rss"},
+							{Name: "json (API)", Value: "json"},
+							{Name: "html (page watch)", Value: "html"},
+						},
+					},
 				},
 			},
 			{
@@ -161,6 +172,12 @@ func cmdFeed() *discordgo.ApplicationCommand {
 						},
 					},
 				},
+			},
+			{
+				Type:        discordgo.ApplicationCommandOptionSubCommand,
+				Name:        "source",
+				Description: "Edit the extraction config (JSON APIs & HTML pages)",
+				Options:     []*discordgo.ApplicationCommandOption{feedIDOption()},
 			},
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,

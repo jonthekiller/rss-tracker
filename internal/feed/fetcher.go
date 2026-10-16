@@ -215,9 +215,10 @@ func enclosureImage(item *gofeed.Item) *string {
 	return nil
 }
 
-// FetchFeed fetches a feed with conditional GET support. It returns a
-// not-modified result on HTTP 304 and a *FetchError on failure.
-func FetchFeed(ctx context.Context, url string, options FetchOptions) (*FetchFeedResult, error) {
+// httpGet fetches a URL with conditional-GET support and shared limits.
+// It returns the body (nil on HTTP 304), the ETag/Last-Modified response
+// headers, and the final URL after redirects, or a *FetchError.
+func httpGet(ctx context.Context, url, accept string, options FetchOptions) (body []byte, etag, lastModified *string, finalURL string, err error) {
 	timeout := options.Timeout
 	if timeout == 0 {
 		timeout = DefaultTimeout
@@ -227,11 +228,10 @@ func FetchFeed(ctx context.Context, url string, options FetchOptions) (*FetchFee
 
 	req, err := http.NewRequestWithContext(fetchCtx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, &FetchError{Message: "Failed to reach feed: " + err.Error()}
+		return nil, nil, nil, "", &FetchError{Message: "Failed to reach feed: " + err.Error()}
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept",
-		"application/rss+xml, application/atom+xml, application/xml, text/xml, */*")
+	req.Header.Set("Accept", accept)
 	if options.ETag != nil {
 		req.Header.Set("If-None-Match", *options.ETag)
 	}
@@ -245,26 +245,42 @@ func FetchFeed(ctx context.Context, url string, options FetchOptions) (*FetchFee
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, &FetchError{Message: "Failed to reach feed: " + err.Error()}
+		return nil, nil, nil, "", &FetchError{Message: "Failed to reach feed: " + err.Error()}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusNotModified {
-		return &FetchFeedResult{Status: StatusNotModified}, nil
+		return nil, nil, nil, "", nil
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, &FetchError{
+		return nil, nil, nil, "", &FetchError{
 			Message:    fmt.Sprintf("HTTP %d %s", resp.StatusCode, http.StatusText(resp.StatusCode)),
 			StatusCode: resp.StatusCode,
 		}
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, MaxBytes+1))
+	body, err = io.ReadAll(io.LimitReader(resp.Body, MaxBytes+1))
 	if err != nil {
-		return nil, &FetchError{Message: "Failed to read feed: " + err.Error()}
+		return nil, nil, nil, "", &FetchError{Message: "Failed to read feed: " + err.Error()}
 	}
 	if len(body) > MaxBytes {
-		return nil, &FetchError{Message: fmt.Sprintf("Feed too large (%d bytes)", len(body))}
+		return nil, nil, nil, "", &FetchError{Message: fmt.Sprintf("Feed too large (%d bytes)", len(body))}
+	}
+	final := resp.Request.URL.String()
+	return body, headerPtr(resp.Header.Get("ETag")), headerPtr(resp.Header.Get("Last-Modified")), final, nil
+}
+
+// FetchFeed fetches a feed with conditional GET support. It returns a
+// not-modified result on HTTP 304 and a *FetchError on failure.
+func FetchFeed(ctx context.Context, url string, options FetchOptions) (*FetchFeedResult, error) {
+	body, etag, lastModified, _, err := httpGet(
+		ctx, url, "application/rss+xml, application/atom+xml, application/xml, text/xml, */*", options,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if body == nil {
+		return &FetchFeedResult{Status: StatusNotModified}, nil
 	}
 
 	parser := newParser()
@@ -287,8 +303,8 @@ func FetchFeed(ctx context.Context, url string, options FetchOptions) (*FetchFee
 		Status:       StatusOK,
 		Articles:     articles,
 		Meta:         meta,
-		ETag:         headerPtr(resp.Header.Get("ETag")),
-		LastModified: headerPtr(resp.Header.Get("Last-Modified")),
+		ETag:         etag,
+		LastModified: lastModified,
 	}, nil
 }
 

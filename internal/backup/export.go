@@ -26,6 +26,8 @@ type BackupFeed struct {
 	BatchThreshold  int            `json:"batchThreshold"`
 	BatchMaxItems   int            `json:"batchMaxItems"`
 	MaxAgeDays      int            `json:"maxAgeDays"`
+	SourceType      string         `json:"sourceType,omitempty"`
+	ExtractConfig   *string        `json:"extractConfig,omitempty"`
 	PauseReason     *string        `json:"pauseReason"`
 	Filters         []BackupFilter `json:"filters"`
 	SeenKeys        []string       `json:"seenKeys"`
@@ -83,6 +85,7 @@ func FeedToBackup(feedRow *store.Feed, st *store.FeedStore) (*BackupFeed, error)
 		TemplateText: feedRow.TemplateText, EmbedJSON: feedRow.EmbedJSON,
 		BatchMode: string(feedRow.BatchMode), BatchThreshold: feedRow.BatchThreshold,
 		BatchMaxItems: feedRow.BatchMaxItems, MaxAgeDays: feedRow.MaxAgeDays,
+		SourceType: normalizeSourceType(feedRow.SourceType), ExtractConfig: feedRow.ExtractConfig,
 		PauseReason: feedRow.PauseReason, Filters: backupFilters, SeenKeys: seenKeys,
 	}, nil
 }
@@ -129,6 +132,15 @@ func sortStrings(values []string) {
 			values[j], values[j-1] = values[j-1], values[j]
 		}
 	}
+}
+
+// normalizeSourceType defaults empty source types to rss (v1/v2 backups and
+// TS exports carry no sourceType).
+func normalizeSourceType(sourceType string) string {
+	if sourceType == "" {
+		return store.SourceTypeRSS
+	}
+	return sourceType
 }
 
 var nowUTC = func() time.Time { return time.Now().UTC() }
@@ -305,6 +317,7 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 		return RestoreEntryResult{}, err
 	}
 	batchMode := store.BatchMode(feedBackup.BatchMode)
+	sourceType := normalizeSourceType(feedBackup.SourceType)
 	if existing != nil {
 		// Existing feeds keep their live channel (never moved by a restore).
 		pauseReason := feedBackup.PauseReason
@@ -318,6 +331,8 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 			BatchThreshold:   &feedBackup.BatchThreshold,
 			BatchMaxItems:    &feedBackup.BatchMaxItems,
 			MaxAgeDays:       &feedBackup.MaxAgeDays,
+			SourceType:       &sourceType,
+			ExtractConfig:    &feedBackup.ExtractConfig,
 			PauseReason:      pauseReason,
 			ClearPauseReason: pauseReason == nil,
 		}); err != nil {
@@ -334,6 +349,7 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 			BatchThreshold: feedBackup.BatchThreshold, HasThreshold: true,
 			BatchMaxItems: feedBackup.BatchMaxItems, HasMaxItems: true,
 			MaxAgeDays: feedBackup.MaxAgeDays, HasMaxAgeDays: true,
+			SourceType: sourceType, ExtractConfig: feedBackup.ExtractConfig,
 			PauseReason: feedBackup.PauseReason,
 		}); err != nil {
 			return RestoreEntryResult{}, err

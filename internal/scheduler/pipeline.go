@@ -31,8 +31,10 @@ type PipelineOptions struct {
 	Concurrency int
 	// MaxBackoffMs overrides the default 6 h backoff ceiling.
 	MaxBackoffMs int64
-	// FetchInject allows tests to stub HTTP behavior indirectly.
+	// FetchTimeout bounds each HTTP fetch.
 	FetchTimeout time.Duration
+	// Fetch is an injectable fetcher (tests); nil uses the real one.
+	Fetch func(ctx context.Context, feedRow *store.Feed) (*feed.FetchFeedResult, error)
 	// Now is an injectable clock (tests).
 	Now func() int64
 	// OnFeedFailed is called when a feed crosses the alert threshold.
@@ -62,6 +64,39 @@ func (p *Pipeline) now() int64 {
 		return p.options.Now()
 	}
 	return store.NowMillis()
+}
+
+// fetch resolves a feed's source (RSS or non-RSS watch) to articles.
+func (p *Pipeline) fetch(ctx context.Context, feedRow *store.Feed) (*feed.FetchFeedResult, error) {
+	if p.options.Fetch != nil {
+		return p.options.Fetch(ctx, feedRow)
+	}
+	return DefaultFetch(ctx, feedRow, p.options.FetchTimeout)
+}
+
+// DefaultFetch routes to the RSS parser or the watch extractor according to
+// the feed's source_type, applying the stored extraction config. Exported
+// for command handlers that fetch outside the scheduler loop (e.g. /feed
+// test).
+func DefaultFetch(ctx context.Context, feedRow *store.Feed, timeout time.Duration) (*feed.FetchFeedResult, error) {
+	switch feedRow.SourceType {
+	case feed.SourceJSON, feed.SourceHTML, feed.SourceAuto:
+		cfg, err := feed.ParseExtractConfig(feedRow.ExtractConfig)
+		if err != nil {
+			return nil, &feed.FetchError{Message: err.Error()}
+		}
+		return feed.FetchWatch(ctx, feedRow.URL, feedRow.SourceType, cfg, feed.FetchOptions{
+			ETag:         feedRow.ETag,
+			LastModified: feedRow.LastModified,
+			Timeout:      timeout,
+		})
+	default:
+		return feed.FetchFeed(ctx, feedRow.URL, feed.FetchOptions{
+			ETag:         feedRow.ETag,
+			LastModified: feedRow.LastModified,
+			Timeout:      timeout,
+		})
+	}
 }
 
 // IntervalMs is the effective check interval for a feed.
@@ -105,11 +140,7 @@ func (p *Pipeline) CheckFeed(ctx context.Context, feedID string, now int64) Chec
 
 	wasFailing := feedRow.ConsecutiveFailures > 0
 
-	result, fetchErr := feed.FetchFeed(ctx, feedRow.URL, feed.FetchOptions{
-		ETag:         feedRow.ETag,
-		LastModified: feedRow.LastModified,
-		Timeout:      p.options.FetchTimeout,
-	})
+	result, fetchErr := p.fetch(ctx, feedRow)
 	if fetchErr != nil {
 		message := fetchErr.Error()
 		p.log.Warn("Feed check failed", "feed", feedRow.Name, "url", feedRow.URL, "err", message)
@@ -242,6 +273,7 @@ type DryRunFeed struct {
 	BatchThreshold  int     `json:"batchThreshold"`
 	TemplateText    string  `json:"templateText"`
 	EmbedJSON       *string `json:"embedJson"`
+	SourceType      string  `json:"sourceType"`
 }
 
 type DryRunState struct {
@@ -301,7 +333,7 @@ func (p *Pipeline) DryRun(ctx context.Context, feedID string, now int64) (*DryRu
 			Enabled: feedRow.Enabled, PauseReason: feedRow.PauseReason,
 			IntervalMinutes: feedRow.IntervalMinutes, BatchMode: string(feedRow.BatchMode),
 			BatchThreshold: feedRow.BatchThreshold, TemplateText: feedRow.TemplateText,
-			EmbedJSON: feedRow.EmbedJSON,
+			EmbedJSON: feedRow.EmbedJSON, SourceType: feedRow.SourceType,
 		},
 		State: DryRunState{
 			SeenCount: seenCount, NextCheckAt: feedRow.NextCheckAt,
@@ -310,11 +342,7 @@ func (p *Pipeline) DryRun(ctx context.Context, feedID string, now int64) (*DryRu
 		},
 	}
 
-	result, fetchErr := feed.FetchFeed(ctx, feedRow.URL, feed.FetchOptions{
-		ETag:         feedRow.ETag,
-		LastModified: feedRow.LastModified,
-		Timeout:      p.options.FetchTimeout,
-	})
+	result, fetchErr := p.fetch(ctx, feedRow)
 	if fetchErr != nil {
 		report.Fetch = &DryRunFetch{Status: "error", Error: fetchErr.Error()}
 		return report, nil

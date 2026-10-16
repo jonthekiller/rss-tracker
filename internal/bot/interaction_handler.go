@@ -6,6 +6,7 @@ import (
 
 	"github.com/bwmarrin/discordgo"
 
+	"github.com/jonthekiller/rss-tracker/internal/feed"
 	"github.com/jonthekiller/rss-tracker/internal/store"
 )
 
@@ -75,7 +76,7 @@ func handleAutocomplete(ctx *BotContext, s *discordgo.Session, i *discordgo.Inte
 	})
 }
 
-// handleModalSubmit processes feed-template and feed-embed modals.
+// handleModalSubmit processes feed-template, feed-embed and feed-source modals.
 func handleModalSubmit(ctx *BotContext, s *discordgo.Session, i *discordgo.Interaction) {
 	data := i.ModalSubmitData()
 	parts := strings.SplitN(data.CustomID, ":", 2)
@@ -117,6 +118,41 @@ func handleModalSubmit(ctx *BotContext, s *discordgo.Session, i *discordgo.Inter
 			Data: &discordgo.InteractionResponseData{
 				Content: "✅ Template updated for **" + feedRow.Name + "**.", Flags: ephemeralFlags,
 			},
+		})
+		return
+	}
+	if customID == "feed-source" {
+		raw := strings.TrimSpace(modalFieldValue(data, "config"))
+		var configPatch *string
+		if raw != "" {
+			if _, err := feed.ParseExtractConfig(&raw); err != nil {
+				_ = s.InteractionRespond(i, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseChannelMessageWithSource,
+					Data: &discordgo.InteractionResponseData{
+						Content: "❌ " + err.Error(), Flags: ephemeralFlags,
+					},
+				})
+				return
+			}
+			v := raw
+			configPatch = &v
+		}
+		patch := store.FeedPatch{ExtractConfig: &configPatch}
+		// Adding an extraction config to an rss feed converts it to auto.
+		if raw != "" && (feedRow.SourceType == "" || feedRow.SourceType == store.SourceTypeRSS) {
+			autoType := store.SourceTypeAuto
+			patch.SourceType = &autoType
+		}
+		if err := ctx.Store.UpdateFeed(feedID, patch); err != nil {
+			log.Error("modal update failed", "err", err)
+		}
+		content := "✅ Extraction config cleared for **" + feedRow.Name + "** (defaults apply)."
+		if raw != "" {
+			content = "✅ Extraction config updated for **" + feedRow.Name + "**. Test with `/feed test` or `/debug feed`."
+		}
+		_ = s.InteractionRespond(i, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseChannelMessageWithSource,
+			Data: &discordgo.InteractionResponseData{Content: content, Flags: ephemeralFlags},
 		})
 		return
 	}

@@ -31,6 +31,14 @@ const (
 	FieldAny         FilterField = "any"
 )
 
+// Source types for feeds.source_type (v3 migration).
+const (
+	SourceTypeRSS  = "rss"
+	SourceTypeJSON = "json"
+	SourceTypeHTML = "html"
+	SourceTypeAuto = "auto"
+)
+
 // Feed mirrors the feeds table row.
 type Feed struct {
 	ID                  string
@@ -47,6 +55,8 @@ type Feed struct {
 	BatchThreshold      int
 	BatchMaxItems       int
 	MaxAgeDays          int
+	SourceType          string // rss | json | html | auto
+	ExtractConfig       *string
 	ETag                *string
 	LastModified        *string
 	LastCheckedAt       *int64
@@ -82,6 +92,8 @@ type NewFeed struct {
 	BatchThreshold  int
 	BatchMaxItems   int
 	MaxAgeDays      int
+	SourceType      string
+	ExtractConfig   *string
 	Enabled         *bool
 	PauseReason     *string
 	HasInterval     bool
@@ -104,6 +116,8 @@ type FeedPatch struct {
 	BatchThreshold      *int
 	BatchMaxItems       *int
 	MaxAgeDays          *int
+	SourceType          *string
+	ExtractConfig       **string
 	ETag                **string
 	LastModified        **string
 	LastCheckedAt       **int64
@@ -117,8 +131,8 @@ type FeedPatch struct {
 
 const feedColumns = `id, name, url, guild_id, channel_id, enabled, interval_minutes, next_check_at,
   template_text, embed_json, batch_mode, batch_threshold, batch_max_items, max_age_days,
-  etag, last_modified, last_checked_at, last_error, consecutive_failures, failed_notified,
-  pause_reason, created_at`
+  source_type, extract_config, etag, last_modified, last_checked_at, last_error,
+  consecutive_failures, failed_notified, pause_reason, created_at`
 
 // FeedStore provides CRUD over the feeds/filters/articles_seen/settings tables.
 type FeedStore struct {
@@ -138,8 +152,9 @@ func scanFeed(row interface{ Scan(...any) error }) (*Feed, error) {
 	err := row.Scan(
 		&f.ID, &f.Name, &f.URL, &f.GuildID, &f.ChannelID, &enabled, &f.IntervalMinutes,
 		&f.NextCheckAt, &f.TemplateText, &f.EmbedJSON, &batchMode, &f.BatchThreshold,
-		&f.BatchMaxItems, &f.MaxAgeDays, &f.ETag, &f.LastModified, &f.LastCheckedAt,
-		&f.LastError, &f.ConsecutiveFailures, &failedNotified, &f.PauseReason, &f.CreatedAt,
+		&f.BatchMaxItems, &f.MaxAgeDays, &f.SourceType, &f.ExtractConfig, &f.ETag,
+		&f.LastModified, &f.LastCheckedAt, &f.LastError, &f.ConsecutiveFailures,
+		&failedNotified, &f.PauseReason, &f.CreatedAt,
 	)
 	if err != nil {
 		return nil, err
@@ -147,6 +162,9 @@ func scanFeed(row interface{ Scan(...any) error }) (*Feed, error) {
 	f.Enabled = enabled == 1
 	f.FailedNotified = failedNotified == 1
 	f.BatchMode = BatchMode(batchMode)
+	if f.SourceType == "" {
+		f.SourceType = "rss"
+	}
 	return &f, nil
 }
 
@@ -241,13 +259,18 @@ func (s *FeedStore) AddFeed(feed NewFeed) (*Feed, error) {
 	if feed.Enabled != nil && !*feed.Enabled {
 		enabled = 0
 	}
+	sourceType := feed.SourceType
+	if sourceType == "" {
+		sourceType = "rss"
+	}
 	_, err := s.db.Exec(
 		`INSERT INTO feeds (id, name, url, guild_id, channel_id, enabled, interval_minutes, next_check_at,
-      template_text, embed_json, batch_mode, batch_threshold, batch_max_items, max_age_days, pause_reason)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+      template_text, embed_json, batch_mode, batch_threshold, batch_max_items, max_age_days,
+      source_type, extract_config, pause_reason)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		feed.ID, name, feed.URL, feed.GuildID, feed.ChannelID, enabled, interval,
 		template, feed.EmbedJSON, string(batchMode), batchThreshold, batchMaxItems, maxAgeDays,
-		feed.PauseReason,
+		sourceType, feed.ExtractConfig, feed.PauseReason,
 	)
 	if err != nil {
 		return nil, err
@@ -301,6 +324,14 @@ func (s *FeedStore) UpdateFeed(id string, patch FeedPatch) error {
 	if patch.MaxAgeDays != nil {
 		sets = append(sets, "max_age_days = ?")
 		values = append(values, *patch.MaxAgeDays)
+	}
+	if patch.SourceType != nil {
+		sets = append(sets, "source_type = ?")
+		values = append(values, *patch.SourceType)
+	}
+	if patch.ExtractConfig != nil {
+		sets = append(sets, "extract_config = ?")
+		values = append(values, *patch.ExtractConfig)
 	}
 	if patch.ETag != nil {
 		sets = append(sets, "etag = ?")

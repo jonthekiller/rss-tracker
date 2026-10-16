@@ -41,6 +41,9 @@ type FetchFeedResult struct {
 	Meta         FeedMeta
 	ETag         *string
 	LastModified *string
+	// DetectedType is set by FetchWatch: the resolved source type
+	// (json/html) when the request was auto-detected.
+	DetectedType string
 }
 
 // FetchError signals a failed fetch; StatusCode is 0 when unknown.

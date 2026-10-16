@@ -68,12 +68,13 @@ Notes:
 
 | Command | Description |
 |---|---|
-| `/feed add url [channel] [name]` | Add a feed (existing articles are marked as seen, nothing is sent) |
-| `/feed list [channel]` | List feeds |
+| `/feed add url [channel] [name] [type]` | Add a source (existing articles are marked as seen, nothing is sent). `type`: `auto` (default) / `rss` / `json` / `html` |
+| `/feed list [channel]` | List feeds (🌐 = non-RSS source) |
 | `/feed show id` | Full feed configuration (including filter ids) |
 | `/feed remove id` | Remove a feed |
 | `/feed pause id` / `/feed resume id` | Pause / resume |
 | `/feed move id channel` | Move to another channel |
+| `/feed source id` | Edit the extraction config of a JSON/HTML source (modal) |
 | `/feed template id` | Edit the message template (modal) |
 | `/feed embed id` | Edit the JSON embed template (modal, empty = none) |
 | `/feed frequency id minutes` | Check frequency (min. 2 min) |
