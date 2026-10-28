@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+.env
+*.log
+coverage/
+dockerhub-overview.md
+/bot
+/bot.exe
+*.db
+*.db-shm
+*.db-wal

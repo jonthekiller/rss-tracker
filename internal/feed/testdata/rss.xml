@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:content="http://purl.org/rss/1.0/modules/content/">
+  <channel>
+    <title>Test RSS Feed</title>
+    <link>https://example.org/</link>
+    <description>Desc</description>
+    <item>
+      <title>Release v1.0.0</title>
+      <link>https://example.org/releases/1</link>
+      <guid isPermaLink="false">tag:2026:rel-1</guid>
+      <pubDate>Sat, 03 Jan 2026 12:00:00 GMT</pubDate>
+      <description>&lt;p&gt;The &amp;amp; description&lt;/p&gt;</description>
+      <content:encoded>&lt;p&gt;Full body with &lt;img src="https://example.org/a.png"/&gt;&lt;/p&gt;</content:encoded>
+    </item>
+    <item>
+      <title>Release v0.9.0</title>
+      <link>https://example.org/releases/0</link>
+      <pubDate>Fri, 02 Jan 2026 12:00:00 GMT</pubDate>
+      <description>Old release</description>
+    </item>
+  </channel>
+</rss>

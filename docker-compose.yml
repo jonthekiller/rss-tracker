@@ -1,0 +1,17 @@
+services:
+  rss-tracker:
+    image: jonthekiller/rss-tracker:latest
+    container_name: rss-tracker
+    restart: unless-stopped
+    # Run as the host user so the ./data bind mount stays accessible
+    # (LOCAL_UID/LOCAL_GID in .env, defaults to 1000:1000).
+    user: "${LOCAL_UID:-1000}:${LOCAL_GID:-1000}"
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+    mem_limit: 256m
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: 3
