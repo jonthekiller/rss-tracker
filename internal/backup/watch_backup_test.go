@@ -75,6 +75,7 @@ func TestBackupWithoutSourceTypeIsRSS(t *testing.T) {
 		MapChannels:           map[string]string{},
 		ChannelExists:         func(guildID, channelID string) (bool, error) { return channelID == "c1", nil },
 		ActorCanManageChannel: func(channelID string) (bool, error) { return true, nil },
+		Baseline:              func(feedID, url string) (bool, string, string) { return true, "", "" },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -126,5 +127,42 @@ func TestExportBackupJSONShape(t *testing.T) {
 	feedJSON := doc.Channels[0].Feeds[0]
 	if feedJSON.SourceType != "html" || feedJSON.ExtractConfig == nil || *feedJSON.ExtractConfig != config {
 		t.Errorf("feed JSON = %+v", feedJSON)
+	}
+}
+
+// TestRestoreNormalizesNonRSSThreshold checks that the legacy default (5)
+// becomes 2 for non-RSS feeds, while RSS and explicit thresholds are kept.
+func TestRestoreNormalizesNonRSSThreshold(t *testing.T) {
+	data := []byte(`{"version":2,"exportedAt":"2024-01-01T00:00:00.000Z","channels":[{"channelId":"c1","settings":{},"feeds":[
+		{"id":"json","name":"JSON","url":"u1","guildId":"g","channelId":"c1","enabled":true,"intervalMinutes":10,"templateText":"t","embedJson":null,"batchMode":"auto","batchThreshold":5,"batchMaxItems":15,"maxAgeDays":30,"sourceType":"json","pauseReason":null,"filters":[],"seenKeys":[]},
+		{"id":"rss","name":"RSS","url":"u2","guildId":"g","channelId":"c1","enabled":true,"intervalMinutes":10,"templateText":"t","embedJson":null,"batchMode":"auto","batchThreshold":5,"batchMaxItems":15,"maxAgeDays":30,"sourceType":"rss","pauseReason":null,"filters":[],"seenKeys":[]},
+		{"id":"explicit","name":"Explicit","url":"u3","guildId":"g","channelId":"c1","enabled":true,"intervalMinutes":10,"templateText":"t","embedJson":null,"batchMode":"auto","batchThreshold":7,"batchMaxItems":15,"maxAgeDays":30,"sourceType":"json","pauseReason":null,"filters":[],"seenKeys":[]}
+	]}]}`)
+	st := newTestStore(t)
+	defer st.Close()
+
+	results, err := RestoreBackup(st, data, RestoreOptions{
+		GuildID:               "g",
+		FallbackChannelID:     "c1",
+		MapChannels:           map[string]string{},
+		ChannelExists:         func(guildID, channelID string) (bool, error) { return channelID == "c1", nil },
+		ActorCanManageChannel: func(channelID string) (bool, error) { return true, nil },
+		Baseline:              func(feedID, url string) (bool, string, string) { return true, "", "" },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %+v", results)
+	}
+	want := map[string]int{"json": 2, "rss": 5, "explicit": 7}
+	for id, threshold := range want {
+		feed, err := st.GetFeed(id)
+		if err != nil || feed == nil {
+			t.Fatalf("%s: %v, %v", id, feed, err)
+		}
+		if feed.BatchThreshold != threshold {
+			t.Errorf("%s: threshold = %d, want %d", id, feed.BatchThreshold, threshold)
+		}
 	}
 }

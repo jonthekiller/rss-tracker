@@ -362,7 +362,7 @@ func feedShow(ctx *BotContext, c *icc) {
 		fmt.Sprintf("Enabled: %t%s", feedRow.Enabled, pauseSuffix(feedRow.PauseReason)),
 		fmt.Sprintf("Frequency: every %d min", feedRow.IntervalMinutes),
 		sourceLine(feedRow),
-		fmt.Sprintf("Batch: %s (threshold %d; digests list every article, split across messages if needed)", feedRow.BatchMode, feedRow.BatchThreshold),
+		fmt.Sprintf("Batch: %s (threshold %d; digests use one embed per article when an embed template is set, otherwise a numbered recap)", feedRow.BatchMode, feedRow.BatchThreshold),
 		fmt.Sprintf("Max article age: %s", maxAgeLabel(feedRow.MaxAgeDays)),
 		"Template:",
 		"```",
@@ -607,7 +607,13 @@ func feedBatch(ctx *BotContext, c *icc) {
 		_ = c.replyEphemeral("Database error: " + err.Error())
 		return
 	}
-	_ = c.replyEphemeral(fmt.Sprintf("📚 Batch mode of **%s** set to `%s`.", feedRow.Name, mode))
+	threshold := feedRow.BatchThreshold
+	if updated, err := ctx.Store.GetFeed(feedRow.ID); err == nil && updated != nil {
+		threshold = updated.BatchThreshold
+	}
+	_ = c.replyEphemeral(fmt.Sprintf(
+		"📚 Batch mode of **%s** set to `%s` (threshold %d; digest uses one embed per article when configured).",
+		feedRow.Name, mode, threshold))
 }
 
 func feedFilterAdd(ctx *BotContext, c *icc) {

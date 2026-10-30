@@ -11,7 +11,7 @@ A lightweight self-hosted Discord bot for watching RSS feeds — a minimalist al
 
 - 🤖 One bot for X channels/servers — each feed has its own configuration
 - 📰 Customizable templates (`{title}`, `{link}`, `{description}`, `{summary}`, `{author}`, `{date}`, `{image}`, `{feed.name}`) + optional JSON embeds
-- 📚 Burst handling: when a feed publishes X articles at once, a grouped **digest** is sent past a threshold (`auto` mode), or always / never (`digest` / `individual`)
+- 📚 Burst handling: when a feed publishes X articles at once, a grouped **digest** is sent past a threshold (`auto` mode), or always / never (`digest` / `individual`) — JSON/HTML sources default to a lower threshold and digests use one embed per article when an embed template is configured
 - 🔎 Include/exclude filters by keyword or regex (title, description)
 - ⏱️ Per-feed check frequency (default 10 min), conditional GETs (ETag/Last-Modified), exponential backoff on failure
 - 🔔 Failure alerts: DM or message when a feed goes down (threshold: `failure_alert_threshold`, default 3 consecutive failures — per-channel override)
@@ -127,8 +127,12 @@ Placeholders: `{title}`, `{link}`, `{description}` (HTML stripped), `{summary}` 
 When N new articles arrive in the same check cycle:
 
 - `individual`: one message per article, in publication order, spaced by the send queue
-- `digest`: always a numbered recap listing every article (split across several messages if it exceeds the 2000-char Discord limit)
-- `auto` (default): digest if N ≥ `threshold` (default 5), otherwise individual
+- `digest`: always a grouped message listing every article
+- `auto` (default): digest if N ≥ `threshold` (default **5 for RSS**, **2 for JSON/HTML/auto** sources), otherwise individual
+
+When the feed has a JSON embed template, a digest is rendered as **one message containing one embed per article** instead of the text-only recap. Discord allows at most 10 embeds and 6000 embed characters per message, so larger bursts are split across several messages (header only on the first). Without an embed template — or with an invalid/empty one — the numbered text digest is used.
+
+Adjust per feed with `/feed batch <id> mode:auto threshold:N` (and configure the embed with `/feed embed <id>`).
 
 ## Backup / restore
 

@@ -304,6 +304,7 @@ type DryRunDetection struct {
 
 type DryRunDelivery struct {
 	Mode         string `json:"mode"`
+	RenderMode   string `json:"renderMode,omitempty"`
 	Messages     int    `json:"messages"`
 	WouldSendNow bool   `json:"wouldSendNow"`
 }
@@ -386,9 +387,22 @@ func (p *Pipeline) DryRun(ctx context.Context, feedID string, now int64) (*DryRu
 		Fresh: len(detection.Fresh), Blocked: len(detection.Blocked), TooOld: len(detection.TooOld),
 		FreshTitles: freshTitles, BlockedTitles: blockedTitles,
 	}
+	mode := "individual"
+	renderMode := ""
+	messageCount := len(detection.Fresh)
+	if willDigest {
+		payloads, embed := p.buildDigestPayloads(feedRow, detection.Fresh)
+		mode = "digest"
+		messageCount = len(payloads)
+		renderMode = "text"
+		if embed {
+			renderMode = "embed"
+		}
+	}
 	report.Delivery = &DryRunDelivery{
-		Mode:         map[bool]string{true: "digest", false: "individual"}[willDigest],
-		Messages:     map[bool]int{true: 1, false: len(detection.Fresh)}[willDigest],
+		Mode:         mode,
+		RenderMode:   renderMode,
+		Messages:     messageCount,
 		WouldSendNow: feedRow.Enabled && len(detection.Fresh) > 0 && seenCount > 0,
 	}
 
@@ -410,19 +424,32 @@ func (p *Pipeline) DryRun(ctx context.Context, feedID string, now int64) (*DryRu
 	return report, nil
 }
 
+// buildDigestPayloads renders a burst: one embed per article when the feed
+// has an embed template, otherwise the numbered text digest. The bool reports
+// whether the embed renderer was used.
+func (p *Pipeline) buildDigestPayloads(feedRow *store.Feed, fresh []feed.Article) ([]render.Payload, bool) {
+	if messages, ok := render.BuildBurstEmbedMessages(
+		fresh, feedRow.EmbedJSON, feedRow.Name, p.options.Timezone,
+	); ok {
+		return messages, true
+	}
+
+	items := make([]render.DigestItem, 0, len(fresh))
+	for _, article := range fresh {
+		items = append(items, render.DigestItem{Title: article.Title, Link: article.Link})
+	}
+	return render.BuildDigestMessages(items, render.DigestOptions{
+		FeedName: feedRow.Name, Timezone: p.options.Timezone,
+	}), false
+}
+
 // Deliver renders and enqueues delivery of fresh articles (batch-aware).
 func (p *Pipeline) Deliver(feedRow *store.Feed, fresh []feed.Article) {
 	useDigest := feedRow.BatchMode == store.BatchDigest ||
 		(feedRow.BatchMode == store.BatchAuto && len(fresh) >= feedRow.BatchThreshold)
 
 	if useDigest {
-		items := make([]render.DigestItem, 0, len(fresh))
-		for _, a := range fresh {
-			items = append(items, render.DigestItem{Title: a.Title, Link: a.Link})
-		}
-		messages := render.BuildDigestMessages(items, render.DigestOptions{
-			FeedName: feedRow.Name, Timezone: p.options.Timezone,
-		})
+		messages, embed := p.buildDigestPayloads(feedRow, fresh)
 		for _, message := range messages {
 			p.options.Sender.Send(feedRow.ChannelID, sender.OutboundMessage{
 				Content: message.Content, Embeds: message.Embeds,
@@ -430,7 +457,8 @@ func (p *Pipeline) Deliver(feedRow *store.Feed, fresh []feed.Article) {
 		}
 		p.log.Info("Digest enqueued for burst",
 			"feed", feedRow.Name, "channel", feedRow.ChannelID,
-			"fresh", len(fresh), "messages", len(messages))
+			"fresh", len(fresh), "messages", len(messages),
+			"render", map[bool]string{true: "embed", false: "text"}[embed])
 		return
 	}
 

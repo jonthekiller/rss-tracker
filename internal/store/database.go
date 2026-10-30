@@ -20,7 +20,8 @@ type migration struct {
 	up      string
 }
 
-// MIGRATIONS must stay byte-identical to the TypeScript MIGRATIONS array.
+// MIGRATIONS versions 1 and 2 must stay byte-identical to the TypeScript
+// MIGRATIONS array. Versions 3+ are Go-only (the TS binary ignores them).
 var MIGRATIONS = []migration{
 	{
 		version: 1,
@@ -103,6 +104,17 @@ var MIGRATIONS = []migration{
       ALTER TABLE feeds ADD COLUMN source_type TEXT NOT NULL DEFAULT 'rss'
         CHECK (source_type IN ('rss','json','html','auto'));
       ALTER TABLE feeds ADD COLUMN extract_config TEXT;
+    `,
+	},
+	{
+		// JSON/HTML sources publish small bursts, so their digest threshold
+		// defaults to 2 instead of 5. Only rows still carrying the old
+		// default are migrated; explicit thresholds are preserved.
+		version: 4,
+		name:    "non-rss-burst-default",
+		up: `
+      UPDATE feeds SET batch_threshold = 2
+      WHERE source_type IN ('json','html','auto') AND batch_threshold = 5;
     `,
 	},
 }

@@ -120,12 +120,12 @@ func cmdFeed() *discordgo.ApplicationCommand {
 			{
 				Type:        discordgo.ApplicationCommandOptionSubCommand,
 				Name:        "batch",
-				Description: "Burst handling mode",
+				Description: "Burst handling (digest uses embeds when set)",
 				Options: []*discordgo.ApplicationCommandOption{
 					feedIDOption(),
 					{
 						Type: discordgo.ApplicationCommandOptionString, Name: "mode",
-						Description: "auto: digest above threshold", Required: true,
+						Description: "auto: digest above threshold (default 5 RSS / 2 JSON-HTML)", Required: true,
 						Choices: []*discordgo.ApplicationCommandOptionChoice{
 							{Name: "auto", Value: "auto"},
 							{Name: "individual", Value: "individual"},
@@ -134,7 +134,7 @@ func cmdFeed() *discordgo.ApplicationCommand {
 					},
 					{
 						Type: discordgo.ApplicationCommandOptionInteger, Name: "threshold",
-						Description: "Digest threshold (auto mode)", MinValue: ptrF64(2),
+						Description: "Digest threshold (auto mode; default 5 RSS / 2 JSON-HTML)", MinValue: ptrF64(2),
 					},
 				},
 			},

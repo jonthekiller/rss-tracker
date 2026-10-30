@@ -151,3 +151,163 @@ func TestParseEmbedTemplateRejectsInvalid(t *testing.T) {
 		t.Errorf("nil embed is fine: %v", err)
 	}
 }
+
+func enisaArticle(id, score string) feed.Article {
+	return feed.Article{
+		Key:         id,
+		Title:       id,
+		Link:        strPtr("https://euvd.enisa.europa.eu/vulnerability/" + id),
+		Description: "A critical vulnerability in " + id,
+		Summary:     "A critical vulnerability in " + id,
+		Extra: map[string]string{
+			"basescore": score,
+			"epss":      "0.42",
+			"assigner":  "Vendor " + id,
+		},
+	}
+}
+
+func TestBuildBurstEmbedMessagesSingleMessage(t *testing.T) {
+	embedJSON := `{
+		"title":"🚨 {title} — CVSS {basescore}",
+		"description":"{summary}",
+		"url":"{link}",
+		"color":"#cc3333",
+		"timestamp":"article",
+		"fields":[
+			{"name":"CVSS","value":"{basescore}","inline":true},
+			{"name":"EPSS","value":"{epss}","inline":true},
+			{"name":"Vendor","value":"{assigner}","inline":true}
+		]
+	}`
+	articles := []feed.Article{
+		enisaArticle("EUVD-1", "9.4"),
+		enisaArticle("EUVD-2", "9.3"),
+		enisaArticle("EUVD-3", "9.1"),
+	}
+	messages, ok := BuildBurstEmbedMessages(articles, &embedJSON, "ENISA", "UTC")
+	if !ok {
+		t.Fatal("expected embed burst")
+	}
+	if len(messages) != 1 {
+		t.Fatalf("messages = %d", len(messages))
+	}
+	if len(messages[0].Embeds) != 3 {
+		t.Fatalf("embeds = %d", len(messages[0].Embeds))
+	}
+	if !strings.Contains(messages[0].Content, "3 new articles") {
+		t.Errorf("header = %q", messages[0].Content)
+	}
+	if got := messages[0].Embeds[0].Title; got != "🚨 EUVD-1 — CVSS 9.4" {
+		t.Errorf("embed title = %q", got)
+	}
+	fields := messages[0].Embeds[0].Fields
+	if len(fields) != 3 || fields[0].Value != "9.4" || fields[1].Value != "0.42" || fields[2].Value != "Vendor EUVD-1" {
+		t.Errorf("fields = %+v", fields)
+	}
+}
+
+func TestBuildBurstEmbedMessagesSplitsAtTenEmbeds(t *testing.T) {
+	embedJSON := `{"title":"{title}"}`
+	articles := make([]feed.Article, 0, 12)
+	for i := 1; i <= 12; i++ {
+		articles = append(articles, enisaArticle("EUVD-"+itoa(i), "9.0"))
+	}
+	messages, ok := BuildBurstEmbedMessages(articles, &embedJSON, "ENISA", "UTC")
+	if !ok {
+		t.Fatal("expected embed burst")
+	}
+	if len(messages) != 2 {
+		t.Fatalf("messages = %d, want 2", len(messages))
+	}
+	if len(messages[0].Embeds) != LimitEmbedsPerMessage {
+		t.Errorf("first message embeds = %d", len(messages[0].Embeds))
+	}
+	if len(messages[1].Embeds) != 2 {
+		t.Errorf("second message embeds = %d", len(messages[1].Embeds))
+	}
+	if !strings.Contains(messages[0].Content, "12 new articles") {
+		t.Errorf("first header = %q", messages[0].Content)
+	}
+	if messages[1].Content != "" {
+		t.Errorf("header must not repeat: %q", messages[1].Content)
+	}
+}
+
+func TestBuildBurstEmbedMessagesSplitsAtTotalChars(t *testing.T) {
+	embedJSON := `{"title":"{title}","description":"{description}"}`
+	long := strings.Repeat("x", 3500)
+	articles := []feed.Article{
+		{Key: "a", Title: "A", Description: long},
+		{Key: "b", Title: "B", Description: long},
+		{Key: "c", Title: "C", Description: long},
+	}
+	messages, ok := BuildBurstEmbedMessages(articles, &embedJSON, "F", "UTC")
+	if !ok {
+		t.Fatal("expected embed burst")
+	}
+	if len(messages) < 2 {
+		t.Fatalf("messages = %d, want split", len(messages))
+	}
+	for i, message := range messages {
+		if len(message.Embeds) > LimitEmbedsPerMessage {
+			t.Errorf("message %d has %d embeds", i, len(message.Embeds))
+		}
+		total := 0
+		for _, embed := range message.Embeds {
+			total += embedCharCount(embed)
+		}
+		if total > LimitEmbedTotal {
+			t.Errorf("message %d chars = %d", i, total)
+		}
+	}
+}
+
+func TestBuildBurstEmbedMessagesClampsOversizedEmbed(t *testing.T) {
+	fields := `[`
+	for i := 0; i < 10; i++ {
+		if i > 0 {
+			fields += ","
+		}
+		fields += `{"name":"Field","value":"` + strings.Repeat("v", 300) + `"}`
+	}
+	fields += `]`
+	embedJSON := `{"title":"{title}","description":"{description}","fields":` + fields + `}`
+	article := feed.Article{
+		Key: "a", Title: "Title", Description: strings.Repeat("d", 5000),
+	}
+	messages, ok := BuildBurstEmbedMessages([]feed.Article{article}, &embedJSON, "F", "UTC")
+	if !ok {
+		t.Fatal("expected embed burst")
+	}
+	if got := embedCharCount(messages[0].Embeds[0]); got > LimitEmbedTotal {
+		t.Errorf("embed chars = %d, want <= %d", got, LimitEmbedTotal)
+	}
+}
+
+func TestBuildBurstEmbedMessagesFallback(t *testing.T) {
+	articles := []feed.Article{enisaArticle("EUVD-1", "9.4")}
+	if _, ok := BuildBurstEmbedMessages(articles, nil, "F", "UTC"); ok {
+		t.Error("nil embed must fall back")
+	}
+	invalid := `{"title":`
+	if _, ok := BuildBurstEmbedMessages(articles, &invalid, "F", "UTC"); ok {
+		t.Error("invalid embed must fall back")
+	}
+	empty := `{}`
+	if _, ok := BuildBurstEmbedMessages(articles, &empty, "F", "UTC"); ok {
+		t.Error("empty embed must fall back")
+	}
+}
+
+func itoa(i int) string {
+	if i == 0 {
+		return "0"
+	}
+	digits := ""
+	for i > 0 {
+		digits = string(rune('0'+i%10)) + digits
+		i /= 10
+	}
+	return digits
+}

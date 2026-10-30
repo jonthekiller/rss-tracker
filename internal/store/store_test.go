@@ -32,7 +32,7 @@ func TestMigrationsApplied(t *testing.T) {
 		}
 		versions = append(versions, v)
 	}
-	if len(versions) != 3 || versions[0] != 1 || versions[1] != 2 || versions[2] != 3 {
+	if len(versions) != 4 || versions[0] != 1 || versions[1] != 2 || versions[2] != 3 || versions[3] != 4 {
 		t.Errorf("versions = %v", versions)
 	}
 }
@@ -184,5 +184,44 @@ func TestKV(t *testing.T) {
 	missing, _ := KVGet(db, "nope")
 	if missing != nil {
 		t.Error("missing key must be nil")
+	}
+}
+
+func TestAddFeedDefaultBatchThresholdBySource(t *testing.T) {
+	st, closeDB := openTestStore(t)
+	defer closeDB()
+
+	cases := []struct {
+		id         string
+		sourceType string
+		want       int
+	}{
+		{"rss", SourceTypeRSS, DefaultBatchThreshold},
+		{"json", SourceTypeJSON, DefaultWatchBatchThreshold},
+		{"html", SourceTypeHTML, DefaultWatchBatchThreshold},
+		{"auto", SourceTypeAuto, DefaultWatchBatchThreshold},
+	}
+	for _, tc := range cases {
+		feed, err := st.AddFeed(NewFeed{
+			ID: tc.id, URL: "https://example.com/" + tc.id, GuildID: "g", ChannelID: "c",
+			SourceType: tc.sourceType,
+		})
+		if err != nil {
+			t.Fatalf("%s: %v", tc.id, err)
+		}
+		if feed.BatchThreshold != tc.want {
+			t.Errorf("%s: threshold = %d, want %d", tc.id, feed.BatchThreshold, tc.want)
+		}
+	}
+
+	explicit, err := st.AddFeed(NewFeed{
+		ID: "explicit", URL: "https://example.com/explicit", GuildID: "g", ChannelID: "c",
+		SourceType: SourceTypeJSON, BatchThreshold: 7, HasThreshold: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicit.BatchThreshold != 7 {
+		t.Errorf("explicit threshold = %d, want 7", explicit.BatchThreshold)
 	}
 }

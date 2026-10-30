@@ -32,16 +32,17 @@ func (h *handlerHolder) set(handler http.HandlerFunc) {
 }
 
 type harness struct {
-	store     *store.FeedStore
-	sender    *sender.SenderQueue
-	pipeline  *Pipeline
-	scheduler *Scheduler
-	sentMu    sync.Mutex
-	sent      []string
-	now       int64
-	serverURL string
-	holder    *handlerHolder
-	alerts    []string
+	store      *store.FeedStore
+	sender     *sender.SenderQueue
+	pipeline   *Pipeline
+	scheduler  *Scheduler
+	sentMu     sync.Mutex
+	sent       []string
+	sentEmbeds []int
+	now        int64
+	serverURL  string
+	holder     *handlerHolder
+	alerts     []string
 }
 
 func newHarness(t *testing.T, initialXML string, mutate func(*PipelineOptions)) *harness {
@@ -69,6 +70,7 @@ func newHarness(t *testing.T, initialXML string, mutate func(*PipelineOptions)) 
 		Send: func(channelID string, message sender.OutboundMessage) error {
 			h.sentMu.Lock()
 			h.sent = append(h.sent, channelID+"|"+message.Content)
+			h.sentEmbeds = append(h.sentEmbeds, len(message.Embeds))
 			h.sentMu.Unlock()
 			return nil
 		},
@@ -105,6 +107,12 @@ func (h *harness) sentMessages() []string {
 	h.sentMu.Lock()
 	defer h.sentMu.Unlock()
 	return append([]string{}, h.sent...)
+}
+
+func (h *harness) sentEmbedCounts() []int {
+	h.sentMu.Lock()
+	defer h.sentMu.Unlock()
+	return append([]int{}, h.sentEmbeds...)
 }
 
 func addFeed(t *testing.T, h *harness, id, channelID string) {

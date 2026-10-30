@@ -403,7 +403,11 @@ func handleDebugFeed(ctx *BotContext, c *icc) {
 		if !report.Delivery.WouldSendNow {
 			suffix = " — **nothing would be sent right now** (paused, nothing new, or first check not yet done)"
 		}
-		lines = append(lines, fmt.Sprintf("Delivery: `%s` → %d message(s)%s", report.Delivery.Mode, report.Delivery.Messages, suffix))
+		render := ""
+		if report.Delivery.RenderMode != "" {
+			render = fmt.Sprintf(" (%s)", report.Delivery.RenderMode)
+		}
+		lines = append(lines, fmt.Sprintf("Delivery: `%s`%s → %d message(s)%s", report.Delivery.Mode, render, report.Delivery.Messages, suffix))
 	}
 	if report.Render != nil {
 		content := report.Render.Content

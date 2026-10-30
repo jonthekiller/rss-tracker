@@ -18,6 +18,13 @@ const enisaJSONTwo = `[
   {"id":"EUVD-1","description":"First vulnerability","datePublished":"Oct 10, 2026, 10:23:20 AM"}
 ]`
 
+const enisaJSONBurst = `[
+  {"id":"EUVD-2","description":"Second vulnerability","datePublished":"Oct 11, 2026, 9:00:00 AM","basescore":9.4},
+  {"id":"EUVD-3","description":"Third vulnerability","datePublished":"Oct 11, 2026, 9:00:01 AM","basescore":9.3},
+  {"id":"EUVD-4","description":"Fourth vulnerability","datePublished":"Oct 11, 2026, 9:00:02 AM","basescore":9.2},
+  {"id":"EUVD-1","description":"First vulnerability","datePublished":"Oct 10, 2026, 10:23:20 AM","basescore":9.0}
+]`
+
 func addWatchFeed(t *testing.T, h *harness, id, channelID, sourceType, extractConfig string) {
 	t.Helper()
 	if _, err := h.store.AddFeed(store.NewFeed{
@@ -60,6 +67,51 @@ func TestWatchJSONFeedDeliversNewItems(t *testing.T) {
 	// The already-seen EUVD-1 must never be re-sent.
 	if strings.Contains(messages[0], "EUVD-1") {
 		t.Errorf("old item replayed: %v", messages)
+	}
+}
+
+// TestWatchJSONBurstUsesMultiEmbedMessage checks the end-to-end behavior for
+// ENISA-like sources: the default threshold (2) triggers a burst, and the
+// burst is rendered as one message with one embed per article instead of the
+// text-only digest.
+func TestWatchJSONBurstUsesMultiEmbedMessage(t *testing.T) {
+	h := newHarness(t, enisaJSONOne, nil)
+	addWatchFeed(t, h, "f1", "c1", store.SourceTypeJSON, "")
+
+	embedJSON := `{
+		"title":"🚨 {title} — CVSS {basescore}",
+		"description":"{summary}",
+		"fields":[
+			{"name":"CVSS","value":"{basescore}","inline":true},
+			{"name":"EPSS","value":"{epss}","inline":true},
+			{"name":"Vendor","value":"{assigner}","inline":true}
+		]
+	}`
+	embedPtr := &embedJSON
+	if err := h.store.UpdateFeed("f1", store.FeedPatch{EmbedJSON: &embedPtr}); err != nil {
+		t.Fatal(err)
+	}
+
+	h.pipeline.CheckFeed(context.Background(), "f1", h.now)
+	h.now += 1000
+	h.holder.set(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(enisaJSONBurst))
+	})
+
+	outcome := h.pipeline.CheckFeed(context.Background(), "f1", h.now)
+	if outcome.Status != "delivered" || outcome.FreshCount != 3 {
+		t.Fatalf("outcome = %+v", outcome)
+	}
+	messages := h.sentMessages()
+	if len(messages) != 1 {
+		t.Fatalf("messages = %d, want 1 multi-embed message: %v", len(messages), messages)
+	}
+	if !strings.Contains(messages[0], "3 new articles") {
+		t.Errorf("header = %q", messages[0])
+	}
+	embedCounts := h.sentEmbedCounts()
+	if len(embedCounts) != 1 || embedCounts[0] != 3 {
+		t.Errorf("embed counts = %v, want [3]", embedCounts)
 	}
 }
 

@@ -16,6 +16,24 @@ const (
 	BatchDigest     BatchMode = "digest"
 )
 
+// Default batch thresholds. JSON/HTML sources usually publish small bursts
+// (2-4 entries), so they get a lower default than RSS feeds.
+const (
+	DefaultBatchThreshold      = 5
+	DefaultWatchBatchThreshold = 2
+)
+
+// defaultBatchThreshold returns the digest threshold applied when a feed does
+// not carry an explicit one.
+func defaultBatchThreshold(sourceType string) int {
+	switch sourceType {
+	case SourceTypeJSON, SourceTypeHTML, SourceTypeAuto:
+		return DefaultWatchBatchThreshold
+	default:
+		return DefaultBatchThreshold
+	}
+}
+
 type FilterKind string
 
 const (
@@ -235,7 +253,11 @@ func (s *FeedStore) AddFeed(feed NewFeed) (*Feed, error) {
 	if feed.HasBatchMode {
 		batchMode = feed.BatchMode
 	}
-	batchThreshold := 5
+	sourceType := feed.SourceType
+	if sourceType == "" {
+		sourceType = SourceTypeRSS
+	}
+	batchThreshold := defaultBatchThreshold(sourceType)
 	if feed.HasThreshold {
 		batchThreshold = feed.BatchThreshold
 	}
@@ -258,10 +280,6 @@ func (s *FeedStore) AddFeed(feed NewFeed) (*Feed, error) {
 	enabled := 1
 	if feed.Enabled != nil && !*feed.Enabled {
 		enabled = 0
-	}
-	sourceType := feed.SourceType
-	if sourceType == "" {
-		sourceType = "rss"
 	}
 	_, err := s.db.Exec(
 		`INSERT INTO feeds (id, name, url, guild_id, channel_id, enabled, interval_minutes, next_check_at,

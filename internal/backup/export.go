@@ -143,6 +143,15 @@ func normalizeSourceType(sourceType string) string {
 	return sourceType
 }
 
+// normalizeBatchThreshold treats the legacy default (5) as the new default
+// (2) for non-RSS feeds. Explicit thresholds other than 5 are preserved.
+func normalizeBatchThreshold(sourceType string, threshold int) int {
+	if sourceType != store.SourceTypeRSS && threshold == store.DefaultBatchThreshold {
+		return store.DefaultWatchBatchThreshold
+	}
+	return threshold
+}
+
 var nowUTC = func() time.Time { return time.Now().UTC() }
 
 // RestoreEntryResult is one per-feed restore outcome.
@@ -318,6 +327,7 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 	}
 	batchMode := store.BatchMode(feedBackup.BatchMode)
 	sourceType := normalizeSourceType(feedBackup.SourceType)
+	batchThreshold := normalizeBatchThreshold(sourceType, feedBackup.BatchThreshold)
 	if existing != nil {
 		// Existing feeds keep their live channel (never moved by a restore).
 		pauseReason := feedBackup.PauseReason
@@ -328,7 +338,7 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 			TemplateText:     &feedBackup.TemplateText,
 			EmbedJSON:        &feedBackup.EmbedJSON,
 			BatchMode:        &batchMode,
-			BatchThreshold:   &feedBackup.BatchThreshold,
+			BatchThreshold:   &batchThreshold,
 			BatchMaxItems:    &feedBackup.BatchMaxItems,
 			MaxAgeDays:       &feedBackup.MaxAgeDays,
 			SourceType:       &sourceType,
@@ -346,7 +356,7 @@ func restoreFeed(st *store.FeedStore, options RestoreOptions, feedBackup *Backup
 			Enabled: &enabled, IntervalMinutes: feedBackup.IntervalMinutes, HasInterval: true,
 			TemplateText: feedBackup.TemplateText, EmbedJSON: feedBackup.EmbedJSON,
 			BatchMode: batchMode, HasBatchMode: true,
-			BatchThreshold: feedBackup.BatchThreshold, HasThreshold: true,
+			BatchThreshold: batchThreshold, HasThreshold: true,
 			BatchMaxItems: feedBackup.BatchMaxItems, HasMaxItems: true,
 			MaxAgeDays: feedBackup.MaxAgeDays, HasMaxAgeDays: true,
 			SourceType: sourceType, ExtractConfig: feedBackup.ExtractConfig,

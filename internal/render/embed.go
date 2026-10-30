@@ -238,3 +238,128 @@ func BuildArticlePayload(templateText string, embedJSON *string, context Templat
 
 	return Payload{Content: content, Embeds: embeds}
 }
+
+// embedCharCount returns the number of characters Discord counts for one
+// embed (title, description, field names/values, footer and author names).
+func embedCharCount(embed *discordgo.MessageEmbed) int {
+	if embed == nil {
+		return 0
+	}
+	count := len([]rune(embed.Title)) + len([]rune(embed.Description))
+	if embed.Footer != nil {
+		count += len([]rune(embed.Footer.Text))
+	}
+	if embed.Author != nil {
+		count += len([]rune(embed.Author.Name))
+	}
+	for _, field := range embed.Fields {
+		if field == nil {
+			continue
+		}
+		count += len([]rune(field.Name)) + len([]rune(field.Value))
+	}
+	return count
+}
+
+// truncateTo is feed.Truncate with a clean empty result for non-positive
+// limits (avoids leaving a lone ellipsis when an embed must shrink to zero).
+func truncateTo(text string, max int) string {
+	if max <= 0 {
+		return ""
+	}
+	return feed.Truncate(text, max)
+}
+
+// clampEmbedTotal shrinks an embed until it fits Discord's 6000-character
+// total. It drops the least important content first: description, then
+// fields from the end, then footer/author, then title.
+func clampEmbedTotal(embed *discordgo.MessageEmbed) {
+	for embedCharCount(embed) > LimitEmbedTotal {
+		excess := embedCharCount(embed) - LimitEmbedTotal
+		switch {
+		case embed.Description != "":
+			embed.Description = truncateTo(embed.Description, len([]rune(embed.Description))-excess)
+		case len(embed.Fields) > 0:
+			embed.Fields = embed.Fields[:len(embed.Fields)-1]
+		case embed.Footer != nil:
+			embed.Footer = nil
+		case embed.Author != nil:
+			embed.Author = nil
+		case embed.Title != "":
+			embed.Title = truncateTo(embed.Title, len([]rune(embed.Title))-excess)
+		default:
+			return
+		}
+	}
+}
+
+// embedIsEmpty reports whether an embed carries no visible content. Discord
+// rejects messages whose only embed is empty.
+func embedIsEmpty(embed *discordgo.MessageEmbed) bool {
+	if embed == nil {
+		return true
+	}
+	return embed.Title == "" && embed.Description == "" && len(embed.Fields) == 0 &&
+		embed.Footer == nil && embed.Author == nil && embed.Image == nil &&
+		embed.Thumbnail == nil && embed.URL == "" && embed.Timestamp == ""
+}
+
+// BuildBurstEmbedMessages renders a burst as one or more messages containing
+// one embed per article (instead of the text-only digest). It returns false
+// when no usable embed template exists, so callers can fall back to the text
+// digest. Discord limits are enforced: at most 10 embeds and 6000 embed
+// characters per message; the header only appears on the first message.
+func BuildBurstEmbedMessages(articles []feed.Article, embedJSON *string, feedName, timezone string) ([]Payload, bool) {
+	if len(articles) == 0 {
+		return nil, false
+	}
+	template, err := ParseEmbedTemplate(embedJSON)
+	if err != nil || template == nil {
+		return nil, false
+	}
+
+	embeds := make([]*discordgo.MessageEmbed, 0, len(articles))
+	for _, article := range articles {
+		embed := RenderEmbed(template, TemplateContext{
+			Article: article, FeedName: feedName, Timezone: timezone,
+		})
+		clampEmbedTotal(embed)
+		if embedIsEmpty(embed) {
+			return nil, false
+		}
+		embeds = append(embeds, embed)
+	}
+
+	header := feed.Truncate(digestHeader(feedName, len(articles)), LimitContent)
+	messages := make([]Payload, 0, (len(embeds)+LimitEmbedsPerMessage-1)/LimitEmbedsPerMessage)
+	current := make([]*discordgo.MessageEmbed, 0, LimitEmbedsPerMessage)
+	currentChars := 0
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		content := ""
+		if len(messages) == 0 {
+			content = header
+		}
+		messages = append(messages, Payload{Content: content, Embeds: current})
+		current = make([]*discordgo.MessageEmbed, 0, LimitEmbedsPerMessage)
+		currentChars = 0
+	}
+
+	for _, embed := range embeds {
+		chars := embedCharCount(embed)
+		// Defensive: clampEmbedTotal should always make a single embed fit.
+		if chars > LimitEmbedTotal {
+			return nil, false
+		}
+		if len(current) == LimitEmbedsPerMessage ||
+			(len(current) > 0 && currentChars+chars > LimitEmbedTotal) {
+			flush()
+		}
+		current = append(current, embed)
+		currentChars += chars
+	}
+	flush()
+	return messages, true
+}

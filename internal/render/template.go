@@ -34,6 +34,7 @@ const (
 	LimitEmbedAuthor      = 256
 	LimitEmbedFields      = 10
 	LimitEmbedTotal       = 6000
+	LimitEmbedsPerMessage = 10
 )
 
 // placeholderRe matches standard and custom ({extras}) placeholders.

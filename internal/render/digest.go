@@ -33,6 +33,15 @@ func truncateRunes(s string, n int) string {
 	return string(runes[:n])
 }
 
+// digestHeader is the shared header of text digests and embed bursts.
+func digestHeader(feedName string, total int) string {
+	suffix := ""
+	if total > 1 {
+		suffix = "s"
+	}
+	return fmt.Sprintf("📰 **%s** — %d new article%s:", feedName, total, suffix)
+}
+
 // BuildDigestMessages builds the digest message(s) for a burst of articles.
 // Every item is listed; when the recap does not fit in a single message it is
 // split into as many messages as needed (max 2000 chars each), header only on
@@ -56,12 +65,7 @@ func BuildDigestMessages(items []DigestItem, options DigestOptions) []Payload {
 		}
 	}
 
-	total := len(items)
-	suffix := ""
-	if total > 1 {
-		suffix = "s"
-	}
-	header := fmt.Sprintf("📰 **%s** — %d new article%s:", options.FeedName, total, suffix)
+	header := digestHeader(options.FeedName, len(items))
 	fullBody := strings.Join(lines, "\n")
 
 	if runeLen(header)+1+runeLen(fullBody) <= LimitContent {
